@@ -1,0 +1,34 @@
+{
+  "testName": "User Login Test",
+  "description": "Verify that users can log in with valid credentials",
+  "steps": [
+    {
+      "action": "navigate",
+      "url": "https://example.com/login"
+    },
+    {
+      "action": "input",
+      "selector": "#email",
+      "value": "test@example.com"
+    },
+    {
+      "action": "input",
+      "selector": "#password",
+      "value": "password123"
+    },
+    {
+      "action": "click",
+      "selector": "button[type='submit']"
+    },
+    {
+      "action": "assertUrl",
+      "expected": "https://example.com/dashboard"
+    },
+    {
+      "action": "assertElement",
+      "selector": ".welcome-message",
+      "expected": "visible"
+    }
+  ],
+  "expectedResult": "User successfully logged in and redirected to dashboard"
+}
