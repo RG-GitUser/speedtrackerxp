@@ -264,59 +264,73 @@ function TestExecution() {
               Choose Project Folder
             </label>
             <select
-              value={selectedFolder}
+              value={selectedProject}
               onChange={(e) => {
-                setSelectedFolder(e.target.value)
+                setSelectedProject(e.target.value)
+                setSelectedFolder('')
                 setSelectedTests(new Set())
               }}
               className="input"
               disabled={isRunning}
             >
-              <option value="">-- Select a project folder --</option>
-              {folders
-                .sort((a, b) => {
-                  // Sort root folders first, then by name
-                  if (!a.parentId && b.parentId) return -1
-                  if (a.parentId && !b.parentId) return 1
-                  return a.name.localeCompare(b.name)
-                })
-                .map(folder => {
-                  // Determine hierarchy level for indentation
-                  const indent = folder.parentId ? '  🏁 ' : '📁 '
-                  return (
-                    <option key={folder.id} value={folder.id}>
-                      {indent}{folder.name}
-                    </option>
-                  )
-                })}
+              <option value="">-- Select a project --</option>
+              {projectFolders.map(folder => (
+                <option key={folder.id} value={folder.id}>
+                  📁 {folder.name}
+                </option>
+              ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">
-              📁 = Project folder (root)  •  🏁 = Subfolder
-            </p>
           </div>
 
-          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={usePlaywright}
-                onChange={(e) => setUsePlaywright(e.target.checked)}
+          {selectedProject && childFolders.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Choose Test Folder (Optional)
+              </label>
+              <select
+                value={selectedFolder}
+                onChange={(e) => {
+                  setSelectedFolder(e.target.value)
+                  setSelectedTests(new Set())
+                }}
+                className="input"
                 disabled={isRunning}
-                className="w-4 h-4"
-              />
-              <span className="text-sm font-medium text-gray-900">
-                🎭 Use Playwright (Real Browser Tests)
-              </span>
-            </label>
-            <p className="text-xs text-gray-600 mt-1 ml-6">
-              {usePlaywright 
-                ? 'Will execute actual Playwright tests in real browser' 
-                : 'Will simulate test execution with random results'}
-            </p>
-          </div>
+              >
+                <option value="">-- All tests in project --</option>
+                {childFolders.map(folder => (
+                  <option key={folder.id} value={folder.id}>
+                    🏁 {folder.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Leave blank to see all tests in the project
+              </p>
+            </div>
+          )}
 
-          {selectedFolder && folderTests.length > 0 && (
+          {selectedProject && folderTests.length > 0 && (
             <>
+              <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={usePlaywright}
+                    onChange={(e) => setUsePlaywright(e.target.checked)}
+                    disabled={isRunning}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-medium text-gray-900">
+                    🎭 Use Playwright (Real Browser Tests)
+                  </span>
+                </label>
+                <p className="text-xs text-gray-600 mt-1 ml-6">
+                  {usePlaywright 
+                    ? 'Will execute actual Playwright tests in real browser' 
+                    : 'Will simulate test execution with random results'}
+                </p>
+              </div>
+
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
                   {selectedTests.size} of {folderTests.length} selected
@@ -399,10 +413,17 @@ function TestExecution() {
             </>
           )}
 
-          {selectedFolder && folderTests.length === 0 && (
+          {selectedProject && folderTests.length === 0 && (
             <div className="text-center py-8 text-gray-500">
               <AlertCircle size={48} className="mx-auto mb-3 text-gray-300" />
               <p>No test cases in this folder</p>
+            </div>
+          )}
+          
+          {!selectedProject && (
+            <div className="text-center py-8 text-gray-400">
+              <Play size={48} className="mx-auto mb-3 text-gray-300" />
+              <p>Select a project folder to begin</p>
             </div>
           )}
         </div>
