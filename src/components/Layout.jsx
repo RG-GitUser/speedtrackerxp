@@ -42,16 +42,16 @@ function Layout() {
             </div>
             
             {/* User Info */}
-            <div className="flex items-center gap-4 absolute right-0">
+            <div className="flex items-center gap-4 absolute right-6">
               <div className="text-right text-gray-300">
                 <p className="font-medium">{user?.name}</p>
                 <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-800 hover:bg-primary-700 text-white rounded-lg transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-sm bg-white hover:bg-gray-100 text-blue-600 rounded transition-colors"
               >
-                <LogOut size={18} />
+                <LogOut size={14} />
                 <span>Logout</span>
               </button>
             </div>

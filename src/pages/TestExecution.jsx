@@ -4,15 +4,62 @@ import { useAuth } from '../contexts/AuthContext'
 import { Play, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react'
 
 function TestExecution() {
-  const { folders, testCases, createTestRun, updateTestRun, updateTestInRun, testRuns } = useData()
+  const { folders, testCases, createTestRun, updateTestRun, updateTestInRun, testRuns, refreshData } = useData()
   const { user } = useAuth()
+  const [selectedProject, setSelectedProject] = useState('')
   const [selectedFolder, setSelectedFolder] = useState('')
   const [selectedTests, setSelectedTests] = useState(new Set())
   const [isRunning, setIsRunning] = useState(false)
-  const [currentRunId, setCurrentRunId] = useState(null)
+  const [currentRun, setCurrentRun] = useState(null)
+  const [error, setError] = useState(null)
+  const [usePlaywright, setUsePlaywright] = useState(false)
 
-  const folderTests = selectedFolder ? testCases.filter(tc => tc.folderId === selectedFolder) : []
-  const currentRun = currentRunId ? testRuns.find(r => r.id === currentRunId) : null
+  // Get root folders (projects)
+  const projectFolders = folders.filter(f => !f.parentId)
+  
+  // Get child folders of selected project
+  const childFolders = selectedProject 
+    ? folders.filter(f => f.parentId === selectedProject) 
+    : []
+  
+  // Get tests for selected folder (or all tests in project if no specific folder selected)
+  const folderTests = selectedFolder 
+    ? testCases.filter(tc => tc.folderId === selectedFolder)
+    : selectedProject && childFolders.length === 0
+    ? testCases.filter(tc => tc.folderId === selectedProject)
+    : []
+  
+  // Helper to refresh current run from latest data
+  const refreshCurrentRun = async (runId) => {
+    // Small delay to ensure backend has updated
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
+    // Fetch latest data
+    const response = await fetch(`http://localhost:3001/api/testruns/${runId}`)
+    const updatedRun = await response.json()
+    const formattedRun = { ...updatedRun, id: updatedRun._id }
+    setCurrentRun(formattedRun)
+    console.log('🔄 Refreshed current run:', formattedRun)
+  }
+  
+  // Update currentRun whenever testRuns changes
+  useEffect(() => {
+    if (currentRun && currentRun.id) {
+      const updatedRun = testRuns.find(r => r.id === currentRun.id)
+      if (updatedRun) {
+        console.log('Syncing current run from testRuns:', updatedRun)
+        setCurrentRun(updatedRun)
+      }
+    }
+  }, [testRuns])
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('TestExecution state updated:', {
+      currentRun: currentRun ? { id: currentRun.id, testsCount: currentRun.tests?.length } : null,
+      testRunsCount: testRuns.length
+    })
+  }, [currentRun, testRuns])
 
   const toggleTest = (testId) => {
     const newSelected = new Set(selectedTests)
@@ -37,13 +84,14 @@ function TestExecution() {
     const test = testCases.find(tc => tc.id === testId)
     
     // Start test
-    updateTestInRun(runId, testId, {
+    await updateTestInRun(runId, testId, {
       status: 'running',
       startTime: new Date().toISOString(),
       logs: [`Starting test: ${test.name}`]
     })
+    await refreshCurrentRun(runId)
 
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise(resolve => setTimeout(resolve, 200))
     
     // Add some log entries
     const logs = [
@@ -54,8 +102,9 @@ function TestExecution() {
     ]
 
     for (const log of logs) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      updateTestInRun(runId, testId, { logs })
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await updateTestInRun(runId, testId, { logs })
+      await refreshCurrentRun(runId)
     }
 
     // Random pass/fail (80% pass rate)
@@ -66,42 +115,143 @@ function TestExecution() {
       `Test ${passed ? 'PASSED' : 'FAILED'}`
     ]
 
-    updateTestInRun(runId, testId, {
+    await updateTestInRun(runId, testId, {
       status: passed ? 'passed' : 'failed',
       endTime: new Date().toISOString(),
       logs: finalLogs,
       result: passed ? 'success' : 'failure'
     })
+    await refreshCurrentRun(runId)
+  }
+
+  // Execute real Playwright test
+  const executePlaywrightTest = async (runId, testId) => {
+    const test = testCases.find(tc => tc.id === testId)
+    
+    console.log('🎭 PLAYWRIGHT MODE: Executing real browser test for:', test.name)
+    
+    // Start test
+    await updateTestInRun(runId, testId, {
+      status: 'running',
+      startTime: new Date().toISOString(),
+      logs: [`🎭 Starting Playwright test: ${test.name}`, `📂 Test file: ${test.script || 'tests/app-navigation.spec.js'}`, `🚀 Launching browser...`]
+    })
+    await refreshCurrentRun(runId)
+
+    try {
+      console.log('📡 Calling Playwright API endpoint...')
+      const response = await fetch('http://localhost:3001/api/execute-playwright-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          testPath: test.script || 'tests/app-navigation.spec.js'
+        })
+      })
+
+      console.log('📦 Playwright API response received')
+      const result = await response.json()
+      console.log('🎭 Playwright result:', result)
+      
+      // Parse Playwright results
+      const passed = result.success
+      const logs = [
+        `🎭 Starting Playwright test: ${test.name}`,
+        `📂 Test file: ${test.script || 'tests/app-navigation.spec.js'}`,
+        `🚀 Launching browser...`,
+        ...(result.logs ? result.logs.split('\n').filter(l => l.trim()) : []),
+        passed ? '✅ All Playwright tests passed' : '❌ Some Playwright tests failed',
+        `Exit code: ${result.exitCode}`
+      ]
+
+      await updateTestInRun(runId, testId, {
+        status: passed ? 'passed' : 'failed',
+        endTime: new Date().toISOString(),
+        logs,
+        result: passed ? 'success' : 'failure'
+      })
+      await refreshCurrentRun(runId)
+
+    } catch (error) {
+      console.error('❌ Playwright execution error:', error)
+      await updateTestInRun(runId, testId, {
+        status: 'failed',
+        endTime: new Date().toISOString(),
+        logs: [
+          `🎭 Starting Playwright test: ${test.name}`,
+          `❌ Error executing Playwright test`,
+          `Error: ${error.message}`,
+          'Make sure your app is running and the test file exists'
+        ],
+        result: 'failure'
+      })
+      await refreshCurrentRun(runId)
+    }
   }
 
   const runTests = async () => {
     if (selectedTests.size === 0) return
 
     setIsRunning(true)
-    const runId = createTestRun(Array.from(selectedTests), user.id)
-    setCurrentRunId(runId)
+    setError(null)
+    
+    try {
+      console.log('Creating test run for tests:', Array.from(selectedTests))
+      const newRun = await createTestRun(Array.from(selectedTests), user.id)
+      console.log('Test run created:', newRun)
+      
+      if (!newRun || !newRun.id) {
+        throw new Error('Failed to create test run. Is the backend server running on port 3001?')
+      }
+      
+      setCurrentRun(newRun)
+      console.log('CurrentRun set to:', newRun)
 
-    // Execute tests sequentially
-    for (const testId of selectedTests) {
-      await simulateTestExecution(runId, testId)
+      // Execute tests sequentially
+      for (const testId of selectedTests) {
+        console.log('Executing test:', testId)
+        if (usePlaywright) {
+          await executePlaywrightTest(newRun.id, testId)
+        } else {
+          await simulateTestExecution(newRun.id, testId)
+        }
+      }
+
+      // Complete the run
+      await updateTestRun(newRun.id, {
+        status: 'completed',
+        completedAt: new Date().toISOString()
+      })
+      console.log('Test run completed')
+    } catch (err) {
+      console.error('Error running tests:', err)
+      setError(err.message || 'Failed to run tests. Please ensure the backend server is running.')
+    } finally {
+      setIsRunning(false)
     }
-
-    // Complete the run
-    updateTestRun(runId, {
-      status: 'completed',
-      completedAt: new Date().toISOString()
-    })
-
-    setIsRunning(false)
   }
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-primary-800">
-          🏎️ Execute Tests
-        </h1>
-        <p className="text-gray-600 mt-2 text-lg">Select and run test cases at lightning speed</p>
+      {/* Header with cool racing image */}
+      <div className="mb-8 flex items-center justify-between relative overflow-hidden">
+        <div className="flex-1">
+          <h1 className="text-4xl font-bold text-primary-800">
+            Execute Tests
+          </h1>
+          <p className="text-gray-600 mt-2 text-lg">Select and run test cases at lightning speed</p>
+        </div>
+        <div className="ml-8">
+          <img 
+            src="/src/testingtime.png" 
+            alt="Speed Testing" 
+            className="w-64 h-64 object-contain transition-opacity duration-300 hover:opacity-100"
+            style={{ 
+              filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 0.5))',
+              transform: 'scaleX(-1)',
+              opacity: 0.9
+            }}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -111,7 +261,7 @@ function TestExecution() {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Choose Folder
+              Choose Project Folder
             </label>
             <select
               value={selectedFolder}
@@ -122,13 +272,47 @@ function TestExecution() {
               className="input"
               disabled={isRunning}
             >
-              <option value="">-- Select a folder --</option>
-              {folders.map(folder => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}
-                </option>
-              ))}
+              <option value="">-- Select a project folder --</option>
+              {folders
+                .sort((a, b) => {
+                  // Sort root folders first, then by name
+                  if (!a.parentId && b.parentId) return -1
+                  if (a.parentId && !b.parentId) return 1
+                  return a.name.localeCompare(b.name)
+                })
+                .map(folder => {
+                  // Determine hierarchy level for indentation
+                  const indent = folder.parentId ? '  🏁 ' : '📁 '
+                  return (
+                    <option key={folder.id} value={folder.id}>
+                      {indent}{folder.name}
+                    </option>
+                  )
+                })}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              📁 = Project folder (root)  •  🏁 = Subfolder
+            </p>
+          </div>
+
+          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={usePlaywright}
+                onChange={(e) => setUsePlaywright(e.target.checked)}
+                disabled={isRunning}
+                className="w-4 h-4"
+              />
+              <span className="text-sm font-medium text-gray-900">
+                🎭 Use Playwright (Real Browser Tests)
+              </span>
+            </label>
+            <p className="text-xs text-gray-600 mt-1 ml-6">
+              {usePlaywright 
+                ? 'Will execute actual Playwright tests in real browser' 
+                : 'Will simulate test execution with random results'}
+            </p>
           </div>
 
           {selectedFolder && folderTests.length > 0 && (
@@ -197,6 +381,21 @@ function TestExecution() {
                   </>
                 )}
               </button>
+              
+              {error && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-800">Error running tests</p>
+                      <p className="text-sm text-red-700 mt-1">{error}</p>
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Make sure the backend server is running with <code className="bg-red-100 px-1 rounded">npm start</code> in the server folder
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -210,7 +409,22 @@ function TestExecution() {
 
         {/* Test Results */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Test Results</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Test Results</h2>
+            {currentRun && (
+              <div className="flex items-center gap-2 text-sm">
+                {usePlaywright ? (
+                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                    🎭 Playwright Mode
+                  </span>
+                ) : (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                    ⚡ Simulation Mode
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
           {!currentRun ? (
             <div className="text-center py-12 text-gray-500">
@@ -219,42 +433,100 @@ function TestExecution() {
             </div>
           ) : (
             <div className="space-y-4 max-h-[600px] overflow-y-auto">
-              {currentRun.tests.map(test => {
-                const testCase = testCases.find(tc => tc.id === test.testCaseId)
-                
-                return (
-                  <div key={test.testCaseId} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-medium text-gray-900">{testCase?.name}</h3>
-                      <span className={`flex items-center gap-1 ${
-                        test.status === 'passed' ? 'text-green-600' :
-                        test.status === 'failed' ? 'text-red-600' :
-                        test.status === 'running' ? 'text-blue-600' :
-                        'text-gray-400'
-                      }`}>
-                        {test.status === 'passed' && <CheckCircle2 size={18} />}
-                        {test.status === 'failed' && <XCircle size={18} />}
-                        {test.status === 'running' && <Loader2 size={18} className="animate-spin" />}
-                        <span className="text-sm font-medium capitalize">{test.status}</span>
-                      </span>
+              {currentRun.tests && currentRun.tests.length > 0 ? (
+                currentRun.tests.map(test => {
+                  const testCase = testCases.find(tc => tc.id === test.testCaseId)
+                  const isPlaywrightTest = test.logs && test.logs.some(log => log.includes('🎭'))
+                  
+                  return (
+                    <div key={test.testCaseId} className={`border-2 rounded-lg p-4 ${
+                      isPlaywrightTest ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200'
+                    }`}>
+                      {/* Header with test name and status */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {isPlaywrightTest && <span className="text-purple-600">🎭</span>}
+                            <h3 className="font-semibold text-gray-900">{testCase?.name || `Test ${test.testCaseId}`}</h3>
+                          </div>
+                          {testCase?.description && (
+                            <p className="text-xs text-gray-600">{testCase.description}</p>
+                          )}
+                        </div>
+                        <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium ${
+                          test.status === 'passed' ? 'bg-green-100 text-green-700' :
+                          test.status === 'failed' ? 'bg-red-100 text-red-700' :
+                          test.status === 'running' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {test.status === 'passed' && <CheckCircle2 size={16} />}
+                          {test.status === 'failed' && <XCircle size={16} />}
+                          {test.status === 'running' && <Loader2 size={16} className="animate-spin" />}
+                          <span className="text-xs font-semibold uppercase">{test.status}</span>
+                        </span>
+                      </div>
+
+                      {/* Test logs with enhanced formatting */}
+                      {test.logs && test.logs.length > 0 && (
+                        <div className="mb-3">
+                          <div className="bg-gray-900 rounded-lg p-4 text-xs font-mono max-h-64 overflow-y-auto">
+                            {test.logs.map((log, i) => {
+                              // Color code different types of log messages
+                              let logClass = 'text-gray-300'
+                              
+                              if (log.includes('✅') || log.toLowerCase().includes('passed')) {
+                                logClass = 'text-green-400 font-semibold'
+                              } else if (log.includes('❌') || log.toLowerCase().includes('failed')) {
+                                logClass = 'text-red-400 font-semibold'
+                              } else if (log.includes('🎭')) {
+                                logClass = 'text-purple-400'
+                              } else if (log.includes('🚀') || log.includes('📂') || log.includes('📡')) {
+                                logClass = 'text-blue-400'
+                              } else if (log.toLowerCase().includes('error')) {
+                                logClass = 'text-red-300'
+                              } else if (log.toLowerCase().includes('warning')) {
+                                logClass = 'text-yellow-300'
+                              }
+                              
+                              return (
+                                <div key={i} className={`py-0.5 ${logClass}`}>
+                                  <span className="text-gray-500 mr-2">{i + 1}.</span>
+                                  {log}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Test metadata */}
+                      <div className="flex items-center gap-4 text-xs text-gray-600">
+                        {test.startTime && test.endTime && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">⏱️ Duration:</span>
+                            <span className="font-mono font-semibold text-gray-900">
+                              {Math.round((new Date(test.endTime) - new Date(test.startTime)) / 1000)}s
+                            </span>
+                          </div>
+                        )}
+                        {testCase?.script && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">📄 Script:</span>
+                            <code className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-700">
+                              {testCase.script}
+                            </code>
+                          </div>
+                        )}
+                      </div>
                     </div>
-
-                    {test.logs && test.logs.length > 0 && (
-                      <div className="bg-gray-900 text-gray-100 rounded p-3 text-xs font-mono space-y-1 max-h-48 overflow-y-auto">
-                        {test.logs.map((log, i) => (
-                          <div key={i}>{log}</div>
-                        ))}
-                      </div>
-                    )}
-
-                    {test.startTime && test.endTime && (
-                      <div className="mt-2 text-xs text-gray-500">
-                        Duration: {Math.round((new Date(test.endTime) - new Date(test.startTime)) / 1000)}s
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <AlertCircle size={48} className="mx-auto mb-3 text-gray-300" />
+                  <p>No tests in this run</p>
+                </div>
+              )}
             </div>
           )}
         </div>

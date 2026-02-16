@@ -283,6 +283,66 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ==================== PLAYWRIGHT TEST EXECUTION ====================
+
+app.post('/api/execute-playwright-test', async (req, res) => {
+  const { testPath } = req.body;
+  
+  if (!testPath) {
+    return res.status(400).json({ error: 'testPath is required' });
+  }
+
+  try {
+    const { spawn } = require('child_process');
+    const path = require('path');
+    
+    // Navigate to project root (parent of server folder)
+    const projectRoot = path.resolve(__dirname, '..');
+    
+    // Run Playwright test
+    const playwrightProcess = spawn('npx', ['playwright', 'test', testPath, '--reporter=json'], {
+      cwd: projectRoot,
+      shell: true
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    playwrightProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    playwrightProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    playwrightProcess.on('close', (code) => {
+      try {
+        // Parse Playwright JSON output
+        const jsonOutput = JSON.parse(stdout);
+        
+        res.json({
+          success: code === 0,
+          exitCode: code,
+          results: jsonOutput,
+          logs: stderr
+        });
+      } catch (parseError) {
+        // If JSON parsing fails, return raw output
+        res.json({
+          success: code === 0,
+          exitCode: code,
+          rawOutput: stdout,
+          logs: stderr
+        });
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`\n🚀 SpeedTesters XP Backend Server`);

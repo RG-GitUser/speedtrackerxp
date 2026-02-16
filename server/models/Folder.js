@@ -10,6 +10,11 @@ const folderSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  parentId: {
+    type: String,
+    default: null,
+    trim: true
+  },
   order: {
     type: Number,
     default: 0

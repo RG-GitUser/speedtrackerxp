@@ -203,7 +203,7 @@ export function DataProvider({ children }) {
       const newRun = await response.json()
       const formattedRun = { ...newRun, id: newRun._id }
       setTestRuns([formattedRun, ...testRuns])
-      return formattedRun.id
+      return formattedRun  // Return the full object instead of just the ID
 
     } catch (error) {
       console.error('Error creating test run:', error)
