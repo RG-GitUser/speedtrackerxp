@@ -19,7 +19,11 @@
       "Bash(wc -l \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\\\\src\\\\pages\\\\TestFolders.jsx\")",
       "Bash(find \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\\\\server\\\\models\" -type f -name \"*.js\")",
       "Bash(ls -la \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\\\\src\\\\pages\")",
-      "Bash(find \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\" -maxdepth 2 -name \"package.json\" -o -name \"*.md\")"
+      "Bash(find \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\" -maxdepth 2 -name \"package.json\" -o -name \"*.md\")",
+      "Bash(npm install:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3001)",
+      "Bash(taskkill //PID 12508 //F)"
     ]
   }
 }

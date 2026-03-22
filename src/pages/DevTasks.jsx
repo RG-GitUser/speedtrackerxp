@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 
 function DevTasks() {
-  const { folders, devTasks, testCases, testStories, addDevTask, updateDevTask, deleteDevTask } = useData()
+  const { folders, devTasks, testCases, testStories, users, addDevTask, updateDevTask, deleteDevTask } = useData()
   const { user } = useAuth()
   const [selectedFolder, setSelectedFolder] = useState('')
   const [isAddingTask, setIsAddingTask] = useState(false)
@@ -413,12 +413,16 @@ function DevTasks() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Assigned To
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.assignedTo}
                     onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                     className="input"
-                  />
+                  >
+                    <option value="">-- Unassigned --</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

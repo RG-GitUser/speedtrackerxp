@@ -5,21 +5,29 @@ import { LogIn, AlertCircle } from 'lucide-react'
 import logo from '../XPsignin.svg'
 
 function Login() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setIsLoading(true)
 
-    const success = login(email, password)
-    if (success) {
-      navigate('/')
-    } else {
-      setError('Invalid email or password')
+    try {
+      const result = await login(username, password)
+      if (result.success) {
+        navigate('/')
+      } else {
+        setError(result.error || 'Invalid username or password')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -27,18 +35,16 @@ function Login() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-primary-900 to-accent-900">
       {/* Large Logo - Fixed Size */}
       <div style={{ marginTop: '-300px', marginBottom: '-220px' }}>
-        <img 
-          src={logo} 
-          alt="SpeedTesters XP" 
+        <img
+          src={logo}
+          alt="SpeedTesters XP"
           className="mx-auto"
           style={{ width: '1400px', height: 'auto' }}
         />
       </div>
-      
-      {/* Login Card - Compact */}
+
+      {/* Login Card */}
       <div className="w-full max-w-md">
-        
-        {/* Compact Login Card */}
         <div className="bg-white/90 backdrop-blur-md rounded-lg shadow-xl p-6 border border-gray-200">
           <h2 className="text-xl font-bold text-gray-900 text-center mb-6">Sign In</h2>
 
@@ -51,17 +57,18 @@ function Login() {
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                Username
               </label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="input"
-                placeholder="Enter your email"
+                placeholder="Enter your username"
                 required
+                autoComplete="username"
               />
             </div>
 
@@ -77,28 +84,32 @@ function Login() {
                 className="input"
                 placeholder="Enter your password"
                 required
+                autoComplete="current-password"
               />
             </div>
 
-            <button type="submit" className="btn btn-primary w-full flex items-center justify-center gap-2">
-              <LogIn size={20} />
-              <span>Sign In</span>
+            <button
+              type="submit"
+              className="btn btn-primary w-full flex items-center justify-center gap-2"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={20} />
+                  <span>Sign In</span>
+                </>
+              )}
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-600 font-medium mb-2">Demo Accounts:</p>
-            <div className="space-y-2 text-sm">
-              <div className="bg-gray-50 p-3 rounded">
-                <p className="font-medium text-gray-700">Admin Account</p>
-                <p className="text-gray-600">admin@speedtestersxp.com / admin123</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded">
-                <p className="font-medium text-gray-700">Member Account</p>
-                <p className="text-gray-600">member@speedtestersxp.com / member123</p>
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-gray-400 text-center mt-4">
+            Contact your administrator for account access
+          </p>
         </div>
       </div>
     </div>

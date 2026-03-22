@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext()
 
+const API_URL = 'http://localhost:3001/api'
+
 export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) {
@@ -23,22 +25,27 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }, [])
 
-  const login = (email, password) => {
-    // Simple authentication - in production, this would call an API
-    const users = [
-      { id: '1', email: 'admin@speedtestersxp.com', password: 'admin123', name: 'Admin User', role: 'admin' },
-      { id: '2', email: 'member@speedtestersxp.com', password: 'member123', name: 'Team Member', role: 'member' }
-    ]
+  const login = async (username, password) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      })
 
-    const foundUser = users.find(u => u.email === email && u.password === password)
-    if (foundUser) {
-      const userWithoutPassword = { ...foundUser }
-      delete userWithoutPassword.password
-      setUser(userWithoutPassword)
-      localStorage.setItem('speedtestersxp_user', JSON.stringify(userWithoutPassword))
-      return true
+      if (!response.ok) {
+        const errorData = await response.json()
+        return { success: false, error: errorData.error || 'Login failed' }
+      }
+
+      const userData = await response.json()
+      setUser(userData)
+      localStorage.setItem('speedtestersxp_user', JSON.stringify(userData))
+      return { success: true }
+    } catch (error) {
+      console.error('Login error:', error)
+      return { success: false, error: 'Cannot connect to server' }
     }
-    return false
   }
 
   const logout = () => {

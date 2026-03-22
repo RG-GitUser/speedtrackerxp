@@ -54,7 +54,7 @@ function Dashboard() {
   const latestExecutions = recentExecutions.slice(0, 5)
 
   // Tests assigned to current user
-  const myAssignedTests = testCases.filter(tc => tc.assignedTo === user?.id)
+  const myAssignedTests = testCases.filter(tc => tc.assignedTo === user?.name)
 
   const stats = [
     { label: 'Projects', value: totalProjects, icon: FolderTree, color: 'bg-primary-800' },

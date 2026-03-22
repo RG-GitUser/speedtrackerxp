@@ -652,7 +652,7 @@ function FolderModal({ folder, onClose, onSave }) {
 }
 
 function TestStoryModal({ story, folderId, onClose, onSave }) {
-  const { devTasks, folders } = useData()
+  const { devTasks, folders, users } = useData()
   const [title, setTitle] = useState(story?.title || '')
   const [description, setDescription] = useState(story?.description || '')
   const [userStory, setUserStory] = useState(story?.userStory || '')
@@ -770,13 +770,16 @@ function TestStoryModal({ story, folderId, onClose, onSave }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Assigned To
               </label>
-              <input
-                type="text"
+              <select
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
                 className="input"
-                placeholder="Name"
-              />
+              >
+                <option value="">-- Unassigned --</option>
+                {users.map(u => (
+                  <option key={u.id || u._id} value={u.name}>{u.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -882,7 +885,7 @@ function TestStoryModal({ story, folderId, onClose, onSave }) {
 }
 
 function TestCaseModal({ test, folderId, storyId, onClose, onSave }) {
-  const { devTasks } = useData()
+  const { devTasks, users } = useData()
   const [name, setName] = useState(test?.name || '')
   const [description, setDescription] = useState(test?.description || '')
   const [testSteps, setTestSteps] = useState(test?.testSteps || '')
@@ -979,13 +982,16 @@ function TestCaseModal({ test, folderId, storyId, onClose, onSave }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Assigned To
               </label>
-              <input
-                type="text"
+              <select
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
                 className="input"
-                placeholder="Name"
-              />
+              >
+                <option value="">-- Unassigned --</option>
+                {users.map(u => (
+                  <option key={u.id || u._id} value={u.name}>{u.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -12,6 +12,7 @@ const Comment = require('./models/Comment');
 const DevTask = require('./models/DevTask');
 const TestExecution = require('./models/TestExecution');
 const TestStory = require('./models/TestStory');
+const User = require('./models/User');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -32,6 +33,77 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/speedtest
   console.error('❌ MongoDB connection error:', error);
   process.exit(1);
 });
+
+// ==================== AUTH ROUTES ====================
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    const user = await User.findOne({ username, active: true });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    res.json(user.toSafeObject());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all users (for assignment dropdowns — no passwords returned)
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({ active: true }).select('-password -__v');
+    res.json(users.map(u => ({ ...u.toObject(), id: u._id })));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create user (admin only — for backend user creation)
+app.post('/api/users', async (req, res) => {
+  try {
+    const { username, password, name, role } = req.body;
+    const user = new User({ username, password, name, role });
+    await user.save();
+    res.status(201).json(user.toSafeObject());
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Seed default admin user if none exist
+(async () => {
+  try {
+    const userCount = await User.countDocuments();
+    if (userCount === 0) {
+      const admin = new User({
+        username: 'admin',
+        password: 'admin123',
+        name: 'Admin',
+        role: 'admin'
+      });
+      await admin.save();
+      console.log('🔐 Default admin user created (username: admin, password: admin123)');
+    }
+  } catch (error) {
+    console.error('Error seeding admin user:', error);
+  }
+})();
 
 // ==================== FOLDER ROUTES ====================
 

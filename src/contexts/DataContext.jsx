@@ -21,6 +21,7 @@ export function DataProvider({ children }) {
   const [comments, setComments] = useState([])
   const [devTasks, setDevTasks] = useState([])
   const [testExecutions, setTestExecutions] = useState([])
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Fetch all data from MongoDB on mount
@@ -33,24 +34,26 @@ export function DataProvider({ children }) {
       setLoading(true)
       
       // Fetch all data in parallel
-      const [foldersRes, testStoriesRes, testCasesRes, testRunsRes, commentsRes, devTasksRes, testExecutionsRes] = await Promise.all([
+      const [foldersRes, testStoriesRes, testCasesRes, testRunsRes, commentsRes, devTasksRes, testExecutionsRes, usersRes] = await Promise.all([
         fetch(`${API_URL}/folders`),
         fetch(`${API_URL}/teststories`),
         fetch(`${API_URL}/testcases`),
         fetch(`${API_URL}/testruns`),
         fetch(`${API_URL}/comments`),
         fetch(`${API_URL}/devtasks`),
-        fetch(`${API_URL}/testexecutions`)
+        fetch(`${API_URL}/testexecutions`),
+        fetch(`${API_URL}/users`)
       ])
 
-      const [foldersData, testStoriesData, testCasesData, testRunsData, commentsData, devTasksData, testExecutionsData] = await Promise.all([
+      const [foldersData, testStoriesData, testCasesData, testRunsData, commentsData, devTasksData, testExecutionsData, usersData] = await Promise.all([
         foldersRes.json(),
         testStoriesRes.json(),
         testCasesRes.json(),
         testRunsRes.json(),
         commentsRes.json(),
         devTasksRes.json(),
-        testExecutionsRes.json()
+        testExecutionsRes.json(),
+        usersRes.json()
       ])
 
       // Convert MongoDB _id to id for frontend compatibility
@@ -67,6 +70,7 @@ export function DataProvider({ children }) {
       setComments(formatData(commentsData))
       setDevTasks(formatData(devTasksData))
       setTestExecutions(formatData(testExecutionsData))
+      setUsers(formatData(usersData))
 
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -78,6 +82,7 @@ export function DataProvider({ children }) {
       setComments([])
       setDevTasks([])
       setTestExecutions([])
+      setUsers([])
     } finally {
       setLoading(false)
     }
@@ -467,6 +472,7 @@ export function DataProvider({ children }) {
     comments,
     devTasks,
     testExecutions,
+    users,
     loading,
     addFolder,
     updateFolder,

@@ -71,7 +71,7 @@ function TestExecution() {
     try {
       await addTestExecution({
         testCaseId: selectedTest.id,
-        executedBy: user?.id || user?.name || 'Unknown',
+        executedBy: user?.name || 'Unknown',
         ...executionData,
         executionTime: executionData.executionTime ? parseFloat(executionData.executionTime) : null
       })
