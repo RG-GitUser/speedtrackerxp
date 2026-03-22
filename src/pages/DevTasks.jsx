@@ -1,26 +1,30 @@
 import { useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
-import { 
-  Code, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Code,
+  Plus,
+  Edit2,
+  Trash2,
+  CheckCircle2,
+  Clock,
   AlertCircle,
   Link as LinkIcon,
-  Tag
+  Tag,
+  BookOpen,
+  FileText,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
 
 function DevTasks() {
-  const { folders, devTasks, testCases, addDevTask, updateDevTask, deleteDevTask } = useData()
+  const { folders, devTasks, testCases, testStories, addDevTask, updateDevTask, deleteDevTask } = useData()
   const { user } = useAuth()
   const [selectedFolder, setSelectedFolder] = useState('')
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [expandedTask, setExpandedTask] = useState(null)
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -28,13 +32,37 @@ function DevTasks() {
     priority: 'medium',
     assignedTo: user?.name || '',
     estimatedHours: '',
+    relatedTestStoryIds: [],
     relatedTestCaseIds: [],
     tags: []
   })
 
-  const folderTasks = selectedFolder 
-    ? devTasks.filter(t => t.folderId === selectedFolder) 
+  // Get all folder IDs including subfolders recursively
+  const getAllFolderIds = (parentId) => {
+    const ids = [parentId]
+    const children = folders.filter(f => f.parentId === parentId)
+    children.forEach(child => {
+      ids.push(...getAllFolderIds(child.id))
+    })
+    return ids
+  }
+
+  const folderTasks = selectedFolder
+    ? devTasks.filter(t => {
+        const allIds = getAllFolderIds(selectedFolder)
+        return allIds.includes(t.folderId)
+      })
     : []
+
+  // Get stories and test cases for the selected folder (including subfolders)
+  const availableStories = selectedFolder
+    ? testStories.filter(ts => getAllFolderIds(selectedFolder).includes(ts.folderId))
+    : []
+  const availableTestCases = selectedFolder
+    ? testCases.filter(tc => getAllFolderIds(selectedFolder).includes(tc.folderId))
+    : []
+
+  const rootFolders = folders.filter(f => !f.parentId)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -58,6 +86,7 @@ function DevTasks() {
       priority: 'medium',
       assignedTo: user?.name || '',
       estimatedHours: '',
+      relatedTestStoryIds: [],
       relatedTestCaseIds: [],
       tags: []
     })
@@ -74,6 +103,7 @@ function DevTasks() {
       priority: task.priority,
       assignedTo: task.assignedTo || '',
       estimatedHours: task.estimatedHours || '',
+      relatedTestStoryIds: task.relatedTestStoryIds || [],
       relatedTestCaseIds: task.relatedTestCaseIds || [],
       tags: task.tags || []
     })
@@ -83,6 +113,24 @@ function DevTasks() {
   const handleDelete = async (taskId) => {
     if (confirm('Are you sure you want to delete this dev task?')) {
       await deleteDevTask(taskId)
+    }
+  }
+
+  const toggleRelatedStory = (storyId) => {
+    const current = formData.relatedTestStoryIds
+    if (current.includes(storyId)) {
+      setFormData({ ...formData, relatedTestStoryIds: current.filter(id => id !== storyId) })
+    } else {
+      setFormData({ ...formData, relatedTestStoryIds: [...current, storyId] })
+    }
+  }
+
+  const toggleRelatedTestCase = (testCaseId) => {
+    const current = formData.relatedTestCaseIds
+    if (current.includes(testCaseId)) {
+      setFormData({ ...formData, relatedTestCaseIds: current.filter(id => id !== testCaseId) })
+    } else {
+      setFormData({ ...formData, relatedTestCaseIds: [...current, testCaseId] })
     }
   }
 
@@ -114,19 +162,19 @@ function DevTasks() {
           <Code size={40} />
           Developer Tasks
         </h1>
-        <p className="text-gray-600 mt-2 text-lg">Manage development tasks and link them to test cases</p>
+        <p className="text-gray-600 mt-2 text-lg">Manage development tasks and link them to user stories &amp; test cases</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Task List */}
-        <div className="lg:col-span-2">
+        <div className={isAddingTask ? 'lg:col-span-2' : 'lg:col-span-3'}>
           <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Tasks</h2>
               <button
                 onClick={() => {
                   if (!selectedFolder) {
-                    alert('Please select a folder first')
+                    alert('Please select a project first')
                     return
                   }
                   setIsAddingTask(true)
@@ -141,15 +189,18 @@ function DevTasks() {
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Folder
+                Select Project
               </label>
               <select
                 value={selectedFolder}
-                onChange={(e) => setSelectedFolder(e.target.value)}
+                onChange={(e) => {
+                  setSelectedFolder(e.target.value)
+                  resetForm()
+                }}
                 className="input"
               >
-                <option value="">-- Select a folder --</option>
-                {folders.map(folder => (
+                <option value="">-- Select a project --</option>
+                {rootFolders.map(folder => (
                   <option key={folder.id} value={folder.id}>
                     {folder.name}
                   </option>
@@ -162,18 +213,22 @@ function DevTasks() {
                 {folderTasks.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <Code size={48} className="mx-auto mb-3 text-gray-300" />
-                    <p>No dev tasks in this folder</p>
+                    <p>No dev tasks in this project</p>
                   </div>
                 ) : (
                   folderTasks.map(task => {
                     const isExpanded = expandedTask === task.id
-                    const relatedTests = testCases.filter(tc => 
+                    const relatedTests = testCases.filter(tc =>
                       task.relatedTestCaseIds?.includes(tc.id)
                     )
-                    
+                    const relatedStories = testStories.filter(ts =>
+                      task.relatedTestStoryIds?.includes(ts.id)
+                    )
+                    const totalLinked = relatedTests.length + relatedStories.length
+
                     return (
-                      <div 
-                        key={task.id} 
+                      <div
+                        key={task.id}
                         className="border-2 border-gray-200 rounded-lg p-4 hover:border-primary-300 transition-colors"
                       >
                         <div className="flex items-start justify-between mb-2">
@@ -229,22 +284,49 @@ function DevTasks() {
                           </div>
                         )}
 
-                        {relatedTests.length > 0 && (
+                        {/* Related Items */}
+                        {totalLinked > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-200">
                             <button
                               onClick={() => setExpandedTask(isExpanded ? null : task.id)}
                               className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
                             >
                               <LinkIcon size={14} />
-                              {relatedTests.length} Related Test Case{relatedTests.length !== 1 ? 's' : ''}
+                              {totalLinked} Linked Item{totalLinked !== 1 ? 's' : ''}
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
                             {isExpanded && (
-                              <div className="mt-2 space-y-1">
-                                {relatedTests.map(test => (
-                                  <div key={test.id} className="text-xs bg-blue-50 p-2 rounded">
-                                    {test.name}
+                              <div className="mt-2 space-y-2">
+                                {relatedStories.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1">
+                                      <BookOpen size={12} /> User Stories
+                                    </p>
+                                    <div className="space-y-1">
+                                      {relatedStories.map(story => (
+                                        <div key={story.id} className="text-xs bg-blue-50 text-blue-800 p-2 rounded flex items-center gap-2">
+                                          <BookOpen size={12} className="text-blue-500 shrink-0" />
+                                          {story.title}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                ))}
+                                )}
+                                {relatedTests.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1">
+                                      <FileText size={12} /> Test Cases
+                                    </p>
+                                    <div className="space-y-1">
+                                      {relatedTests.map(test => (
+                                        <div key={test.id} className="text-xs bg-green-50 text-green-800 p-2 rounded flex items-center gap-2">
+                                          <FileText size={12} className="text-green-500 shrink-0" />
+                                          {test.name}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -265,7 +347,7 @@ function DevTasks() {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 {editingTask ? 'Edit Task' : 'New Task'}
               </h2>
-              
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -353,13 +435,59 @@ function DevTasks() {
                   />
                 </div>
 
+                {/* Related User Stories */}
+                {availableStories.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                      <BookOpen size={14} className="text-blue-600" />
+                      Related User Stories
+                    </label>
+                    <div className="max-h-32 overflow-y-auto space-y-1 border border-gray-200 rounded p-2">
+                      {availableStories.map(story => (
+                        <label key={story.id} className="flex items-center gap-2 p-1 hover:bg-blue-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.relatedTestStoryIds.includes(story.id)}
+                            onChange={() => toggleRelatedStory(story.id)}
+                            className="rounded text-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">{story.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Related Test Cases */}
+                {availableTestCases.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                      <FileText size={14} className="text-green-600" />
+                      Related Test Cases
+                    </label>
+                    <div className="max-h-32 overflow-y-auto space-y-1 border border-gray-200 rounded p-2">
+                      {availableTestCases.map(tc => (
+                        <label key={tc.id} className="flex items-center gap-2 p-1 hover:bg-green-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.relatedTestCaseIds.includes(tc.id)}
+                            onChange={() => toggleRelatedTestCase(tc.id)}
+                            className="rounded text-green-600"
+                          />
+                          <span className="text-sm text-gray-700">{tc.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-4">
                   <button type="submit" className="btn btn-success flex-1">
                     {editingTask ? 'Update' : 'Create'}
                   </button>
-                  <button 
-                    type="button" 
-                    onClick={resetForm} 
+                  <button
+                    type="button"
+                    onClick={resetForm}
                     className="btn btn-secondary flex-1"
                   >
                     Cancel

@@ -1,24 +1,29 @@
 import { useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
-import { 
-  Play, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
+import {
+  Play,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
   Clock,
   ChevronRight,
   ChevronDown,
-  Link as LinkIcon,
-  Save
+  BookOpen,
+  FileText,
+  FolderOpen,
+  Save,
+  List
 } from 'lucide-react'
 
 function TestExecution() {
-  const { folders, testCases, devTasks, addTestExecution } = useData()
+  const { folders, testStories, testCases, devTasks, addTestExecution } = useData()
   const { user } = useAuth()
-  const [selectedFolder, setSelectedFolder] = useState('')
+  const [expandedProjects, setExpandedProjects] = useState(new Set())
+  const [expandedFolders, setExpandedFolders] = useState(new Set())
+  const [expandedStories, setExpandedStories] = useState(new Set())
   const [selectedTest, setSelectedTest] = useState(null)
-  const [expandedTest, setExpandedTest] = useState(null)
+  const [showSteps, setShowSteps] = useState(true)
   const [executionData, setExecutionData] = useState({
     status: '',
     environment: 'development',
@@ -31,9 +36,14 @@ function TestExecution() {
     executionTime: ''
   })
 
-  const folderTests = selectedFolder 
-    ? testCases.filter(tc => tc.folderId === selectedFolder) 
-    : []
+  const rootFolders = folders.filter(f => !f.parentId)
+
+  const toggleSet = (set, setFn, id) => {
+    const next = new Set(set)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setFn(next)
+  }
 
   const handleTestSelect = (test) => {
     setSelectedTest(test)
@@ -52,7 +62,7 @@ function TestExecution() {
 
   const handleSubmitExecution = async (e) => {
     e.preventDefault()
-    
+
     if (!executionData.status) {
       alert('Please select a test result status')
       return
@@ -65,7 +75,7 @@ function TestExecution() {
         ...executionData,
         executionTime: executionData.executionTime ? parseFloat(executionData.executionTime) : null
       })
-      
+
       alert('Test execution recorded successfully!')
       setSelectedTest(null)
       setExecutionData({
@@ -85,27 +95,17 @@ function TestExecution() {
     }
   }
 
-  const getStatusIcon = (status) => {
-    switch(status) {
-      case 'pass': return <CheckCircle2 className="text-green-600" size={20} />
-      case 'fail': return <XCircle className="text-red-600" size={20} />
-      case 'blocked': return <AlertCircle className="text-orange-600" size={20} />
-      case 'skipped': return <Clock className="text-gray-600" size={20} />
-      default: return null
-    }
-  }
-
   const getStatusButtonClass = (status) => {
     const base = "flex-1 py-3 px-4 rounded-lg font-medium transition-all border-2 flex items-center justify-center gap-2"
     const selected = executionData.status === status ? "ring-4 ring-offset-2" : "opacity-70 hover:opacity-100"
-    
+
     const colors = {
       'pass': 'bg-green-100 border-green-500 text-green-700 ring-green-300',
       'fail': 'bg-red-100 border-red-500 text-red-700 ring-red-300',
       'blocked': 'bg-orange-100 border-orange-500 text-orange-700 ring-orange-300',
       'skipped': 'bg-gray-100 border-gray-500 text-gray-700 ring-gray-300'
     }
-    
+
     return `${base} ${colors[status]} ${selected}`
   }
 
@@ -119,365 +119,549 @@ function TestExecution() {
     return colors[priority] || colors.medium
   }
 
+  // Get child folders for a given parent
+  const getChildFolders = (parentId) => folders.filter(f => f.parentId === parentId)
+
+  // Count all test cases under a folder (including subfolders)
+  const countTestsInFolder = (folderId) => {
+    let count = testCases.filter(tc => tc.folderId === folderId).length
+    const children = getChildFolders(folderId)
+    children.forEach(child => { count += countTestsInFolder(child.id) })
+    return count
+  }
+
+  // Count test cases under a story
+  const countTestsInStory = (storyId) => testCases.filter(tc => tc.testStoryId === storyId).length
+
+  // Render a subfolder node in the tree
+  const renderSubfolder = (folder, depth = 1) => {
+    const childFolders = getChildFolders(folder.id)
+    const folderStories = testStories.filter(ts => ts.folderId === folder.id)
+    const isExpanded = expandedFolders.has(folder.id)
+    const testCount = countTestsInFolder(folder.id)
+
+    return (
+      <div key={folder.id} className="border-l-2 border-gray-200">
+        <button
+          onClick={() => toggleSet(expandedFolders, setExpandedFolders, folder.id)}
+          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors text-left"
+          style={{ paddingLeft: `${depth * 16 + 12}px` }}
+        >
+          {isExpanded ? <ChevronDown size={14} className="text-gray-400 shrink-0" /> : <ChevronRight size={14} className="text-gray-400 shrink-0" />}
+          <FolderOpen size={16} className="text-amber-500 shrink-0" />
+          <span className="font-medium text-gray-800 text-sm truncate">{folder.name}</span>
+          <span className="text-xs text-gray-400 ml-auto shrink-0">{testCount} tests</span>
+        </button>
+
+        {isExpanded && (
+          <div>
+            {/* Nested subfolders */}
+            {childFolders.map(child => renderSubfolder(child, depth + 1))}
+
+            {/* User stories in this folder */}
+            {folderStories.map(story => renderStory(story, folder.id, depth + 1))}
+
+            {folderStories.length === 0 && childFolders.length === 0 && (
+              <p className="text-xs text-gray-400 italic py-2" style={{ paddingLeft: `${(depth + 1) * 16 + 12}px` }}>
+                No user stories
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Render a user story node
+  const renderStory = (story, folderId, depth) => {
+    const storyCases = testCases.filter(tc => tc.testStoryId === story.id)
+    const isExpanded = expandedStories.has(story.id)
+
+    return (
+      <div key={story.id}>
+        <button
+          onClick={() => toggleSet(expandedStories, setExpandedStories, story.id)}
+          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 transition-colors text-left"
+          style={{ paddingLeft: `${depth * 16 + 12}px` }}
+        >
+          {isExpanded ? <ChevronDown size={14} className="text-blue-400 shrink-0" /> : <ChevronRight size={14} className="text-blue-400 shrink-0" />}
+          <BookOpen size={16} className="text-blue-500 shrink-0" />
+          <span className="font-medium text-blue-800 text-sm truncate">{story.title}</span>
+          <span className="text-xs text-blue-400 ml-auto shrink-0">{storyCases.length} tests</span>
+        </button>
+
+        {isExpanded && (
+          <div>
+            {storyCases.length === 0 ? (
+              <p className="text-xs text-gray-400 italic py-2" style={{ paddingLeft: `${(depth + 1) * 16 + 12}px` }}>
+                No test cases
+              </p>
+            ) : (
+              storyCases.map(tc => {
+                const isSelected = selectedTest?.id === tc.id
+                return (
+                  <button
+                    key={tc.id}
+                    onClick={() => handleTestSelect(tc)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-left ${
+                      isSelected
+                        ? 'bg-primary-100 border-l-4 border-primary-500'
+                        : 'hover:bg-gray-50'
+                    }`}
+                    style={{ paddingLeft: `${(depth + 1) * 16 + (isSelected ? 8 : 12)}px` }}
+                  >
+                    <FileText size={14} className={isSelected ? 'text-primary-600 shrink-0' : 'text-gray-400 shrink-0'} />
+                    <span className={`text-sm truncate ${isSelected ? 'font-semibold text-primary-800' : 'text-gray-700'}`}>
+                      {tc.name}
+                    </span>
+                    {tc.priority && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ml-auto shrink-0 ${getPriorityColor(tc.priority)}`}>
+                        {tc.priority}
+                      </span>
+                    )}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Find the story for a test case
+  const getStoryForTest = (test) => testStories.find(ts => ts.id === test?.testStoryId)
+  // Find the folder for a test case
+  const getFolderForTest = (test) => folders.find(f => f.id === test?.folderId)
+
+  const selectedStory = getStoryForTest(selectedTest)
+  const selectedFolder = getFolderForTest(selectedTest)
+
   return (
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-primary-800 flex items-center gap-3">
           <Play size={40} />
-          Manual Test Execution
+          Execute Tests
         </h1>
-        <p className="text-gray-600 mt-2 text-lg">Execute test cases manually and record results</p>
+        <p className="text-gray-600 mt-2 text-lg">Select a test case from the project tree, then record results</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Test Case Selection */}
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Test Case</h2>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Choose Folder
-            </label>
-            <select
-              value={selectedFolder}
-              onChange={(e) => {
-                setSelectedFolder(e.target.value)
-                setSelectedTest(null)
-              }}
-              className="input"
-            >
-              <option value="">-- Select a folder --</option>
-              {folders.map(folder => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}
-                </option>
-              ))}
-            </select>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Panel - Project Tree */}
+        <div className="lg:col-span-4 card p-0 overflow-hidden">
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+              <List size={16} />
+              Project Tree
+            </h2>
           </div>
 
-          {selectedFolder && folderTests.length > 0 && (
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {folderTests.map(test => {
-                const isExpanded = expandedTest === test.id
-                const isSelected = selectedTest?.id === test.id
-                const relatedDevTasks = devTasks.filter(dt => 
-                  dt.relatedTestCaseIds?.includes(test.id)
-                )
-                
+          <div className="max-h-[700px] overflow-y-auto">
+            {rootFolders.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <FolderOpen size={40} className="mx-auto mb-3" />
+                <p className="text-sm">No projects yet</p>
+              </div>
+            ) : (
+              rootFolders.map(project => {
+                const isExpanded = expandedProjects.has(project.id)
+                const childFolders = getChildFolders(project.id)
+                const projectStories = testStories.filter(ts => ts.folderId === project.id)
+                const testCount = countTestsInFolder(project.id)
+
                 return (
-                  <div 
-                    key={test.id}
-                    className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'border-primary-500 bg-primary-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => handleTestSelect(test)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-gray-900">{test.name}</h3>
-                          {test.priority && (
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getPriorityColor(test.priority)}`}>
-                              {test.priority}
-                            </span>
-                          )}
-                        </div>
-                        {test.description && (
-                          <p className="text-sm text-gray-600 mt-1">{test.description}</p>
-                        )}
-                        {test.testType && (
-                          <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
-                            {test.testType}
-                          </span>
-                        )}
+                  <div key={project.id} className="border-b border-gray-100 last:border-b-0">
+                    {/* Project header */}
+                    <button
+                      onClick={() => toggleSet(expandedProjects, setExpandedProjects, project.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      {isExpanded ? <ChevronDown size={16} className="text-gray-500 shrink-0" /> : <ChevronRight size={16} className="text-gray-500 shrink-0" />}
+                      <span className="text-lg">📁</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-900 text-sm block truncate">{project.name}</span>
+                        <span className="text-xs text-gray-400">{testCount} test cases</span>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setExpandedTest(isExpanded ? null : test.id)
-                        }}
-                        className="text-gray-400 hover:text-gray-600 ml-2"
-                      >
-                        {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                      </button>
-                    </div>
+                    </button>
 
+                    {/* Expanded project contents */}
                     {isExpanded && (
-                      <div className="mt-4 pt-4 border-t border-gray-300 space-y-3 text-sm">
-                        {test.testSteps && (
-                          <div>
-                            <span className="font-semibold text-gray-700">Test Steps:</span>
-                            <p className="mt-1 text-gray-600 whitespace-pre-wrap">{test.testSteps}</p>
-                          </div>
-                        )}
-                        
-                        {test.expectedResult && (
-                          <div>
-                            <span className="font-semibold text-gray-700">Expected Result:</span>
-                            <p className="mt-1 text-gray-600">{test.expectedResult}</p>
-                          </div>
-                        )}
-                        
-                        {test.acceptanceCriteria && test.acceptanceCriteria.length > 0 && (
-                          <div>
-                            <span className="font-semibold text-gray-700">Acceptance Criteria:</span>
-                            <ul className="mt-1 space-y-1">
-                              {test.acceptanceCriteria.map((ac, idx) => (
-                                <li key={idx} className="flex items-start gap-2">
-                                  <span className={ac.completed ? 'text-green-600' : 'text-gray-400'}>
-                                    {ac.completed ? '✓' : '○'}
-                                  </span>
-                                  <span className="text-gray-600">{ac.description}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                      <div className="pb-2">
+                        {/* Child subfolders */}
+                        {childFolders.map(folder => renderSubfolder(folder, 1))}
 
-                        {relatedDevTasks.length > 0 && (
-                          <div>
-                            <span className="font-semibold text-gray-700 flex items-center gap-1">
-                              <LinkIcon size={14} />
-                              Related Dev Tasks ({relatedDevTasks.length}):
-                            </span>
-                            <div className="mt-1 space-y-1">
-                              {relatedDevTasks.map(task => (
-                                <div key={task.id} className="text-xs bg-purple-50 p-2 rounded">
-                                  {task.title}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                        {/* Direct stories on the project */}
+                        {projectStories.map(story => renderStory(story, project.id, 1))}
+
+                        {childFolders.length === 0 && projectStories.length === 0 && (
+                          <p className="text-xs text-gray-400 italic py-2 pl-12">No subfolders or stories</p>
                         )}
                       </div>
                     )}
                   </div>
                 )
-              })}
-            </div>
-          )}
-
-          {selectedFolder && folderTests.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <AlertCircle size={48} className="mx-auto mb-3 text-gray-300" />
-              <p>No test cases in this folder</p>
-            </div>
-          )}
-          
-          {!selectedFolder && (
-            <div className="text-center py-8 text-gray-400">
-              <Play size={48} className="mx-auto mb-3 text-gray-300" />
-              <p>Select a folder to begin</p>
-            </div>
-          )}
+              })
+            )}
+          </div>
         </div>
 
-        {/* Execution Form */}
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Record Execution</h2>
-
+        {/* Right Panel - Test Details & Execution */}
+        <div className="lg:col-span-8 space-y-6">
           {!selectedTest ? (
-            <div className="text-center py-12 text-gray-500">
-              <CheckCircle2 size={48} className="mx-auto mb-3 text-gray-300" />
-              <p>Select a test case to record execution</p>
+            <div className="card text-center py-16">
+              <Play size={64} className="mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-semibold text-gray-600 mb-2">Select a Test Case</h3>
+              <p className="text-gray-400">Choose a test case from the project tree on the left to view its details and record execution</p>
             </div>
           ) : (
-            <form onSubmit={handleSubmitExecution} className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold text-blue-900 mb-1">{selectedTest.name}</h3>
-                <p className="text-sm text-blue-700">{selectedTest.description}</p>
+            <>
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                {selectedFolder && (
+                  <>
+                    <span>{selectedFolder.name}</span>
+                    <ChevronRight size={14} />
+                  </>
+                )}
+                {selectedStory && (
+                  <>
+                    <span className="text-blue-600">{selectedStory.title}</span>
+                    <ChevronRight size={14} />
+                  </>
+                )}
+                <span className="text-gray-900 font-medium truncate">{selectedTest.name}</span>
               </div>
 
-              {/* Test Result Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Test Result *
-                </label>
-                <div className="grid grid-cols-2 gap-3">
+              {/* Test Case Detail Card */}
+              <div className="card">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileText size={20} className="text-primary-600" />
+                      <h2 className="text-xl font-bold text-gray-900">{selectedTest.name}</h2>
+                    </div>
+                    {selectedTest.description && (
+                      <p className="text-gray-600 mt-1">{selectedTest.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-3">
+                      {selectedTest.priority && (
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getPriorityColor(selectedTest.priority)}`}>
+                          {selectedTest.priority}
+                        </span>
+                      )}
+                      {selectedTest.testType && (
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs border border-blue-200">
+                          {selectedTest.testType}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => setExecutionData({ ...executionData, status: 'pass' })}
-                    className={getStatusButtonClass('pass')}
+                    onClick={() => setShowSteps(!showSteps)}
+                    className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
                   >
-                    <CheckCircle2 size={20} />
-                    Pass
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExecutionData({ ...executionData, status: 'fail' })}
-                    className={getStatusButtonClass('fail')}
-                  >
-                    <XCircle size={20} />
-                    Fail
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExecutionData({ ...executionData, status: 'blocked' })}
-                    className={getStatusButtonClass('blocked')}
-                  >
-                    <AlertCircle size={20} />
-                    Blocked
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExecutionData({ ...executionData, status: 'skipped' })}
-                    className={getStatusButtonClass('skipped')}
-                  >
-                    <Clock size={20} />
-                    Skipped
+                    {showSteps ? 'Hide' : 'Show'} Steps
+                    {showSteps ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </button>
                 </div>
+
+                {/* Test Details */}
+                {showSteps && (
+                  <div className="space-y-4 border-t border-gray-200 pt-4">
+                    {/* 1. User Story */}
+                    {selectedStory && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                          <BookOpen size={16} className="text-blue-600" />
+                          User Story
+                        </h3>
+                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                          <p className="text-sm text-blue-800 italic">"{selectedStory.userStory}"</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Acceptance Criteria */}
+                    {selectedTest.acceptanceCriteria && selectedTest.acceptanceCriteria.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800 mb-2">Acceptance Criteria</h3>
+                        <ul className="space-y-1">
+                          {selectedTest.acceptanceCriteria.map((ac, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-sm text-gray-600">
+                              <span className={ac.completed ? 'text-green-600' : 'text-gray-400'}>
+                                {ac.completed ? '✓' : '○'}
+                              </span>
+                              <span>{ac.description}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 3. Test Steps */}
+                    {selectedTest.testSteps && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                          <List size={16} className="text-primary-600" />
+                          Test Steps
+                        </h3>
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          {selectedTest.testSteps.split('\n').map((step, idx) => (
+                            <div key={idx} className="flex items-start gap-3 py-1.5">
+                              <span className="text-sm text-gray-600">{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. Expected Result */}
+                    {selectedTest.expectedResult && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                          <CheckCircle2 size={16} className="text-green-600" />
+                          Expected Result
+                        </h3>
+                        <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                          <p className="text-sm text-green-800">{selectedTest.expectedResult}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. Related Dev Tasks */}
+                    {(() => {
+                      const linkedTasks = devTasks.filter(dt =>
+                        dt.relatedTestCaseIds?.includes(selectedTest.id) ||
+                        selectedTest.relatedDevTaskIds?.includes(dt.id) ||
+                        (selectedStory && (dt.relatedTestStoryIds?.includes(selectedStory.id) || selectedStory.relatedDevTaskIds?.includes(dt.id)))
+                      )
+                      // Deduplicate
+                      const uniqueTasks = [...new Map(linkedTasks.map(t => [t.id, t])).values()]
+                      if (uniqueTasks.length === 0) return null
+                      return (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1">
+                            🔧 Related Dev Tasks ({uniqueTasks.length})
+                          </h3>
+                          <div className="space-y-1">
+                            {uniqueTasks.map(task => (
+                              <div key={task.id} className="bg-purple-50 rounded-lg px-3 py-2 border border-purple-200 flex items-center justify-between">
+                                <span className="text-sm text-purple-800">{task.title}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  task.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                  task.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
+                                  task.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>{task.status}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
               </div>
 
-              {/* Environment & Version */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Environment *
-                  </label>
-                  <select
-                    value={executionData.environment}
-                    onChange={(e) => setExecutionData({ ...executionData, environment: e.target.value })}
-                    className="input"
-                    required
-                  >
-                    <option value="production">Production</option>
-                    <option value="staging">Staging</option>
-                    <option value="development">Development</option>
-                    <option value="qa">QA</option>
-                    <option value="uat">UAT</option>
-                    <option value="local">Local</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Version
-                  </label>
-                  <input
-                    type="text"
-                    value={executionData.version}
-                    onChange={(e) => setExecutionData({ ...executionData, version: e.target.value })}
-                    className="input"
-                    placeholder="e.g., v1.2.3"
-                  />
-                </div>
-              </div>
-
-              {/* Device & Browser */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Device Type *
-                  </label>
-                  <select
-                    value={executionData.deviceType}
-                    onChange={(e) => setExecutionData({ ...executionData, deviceType: e.target.value })}
-                    className="input"
-                    required
-                  >
-                    <option value="desktop">Desktop</option>
-                    <option value="mobile">Mobile</option>
-                    <option value="tablet">Tablet</option>
-                    <option value="api">API</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Browser
-                  </label>
-                  <input
-                    type="text"
-                    value={executionData.browser}
-                    onChange={(e) => setExecutionData({ ...executionData, browser: e.target.value })}
-                    className="input"
-                    placeholder="e.g., Chrome 120"
-                  />
-                </div>
-              </div>
-
-              {/* OS & Execution Time */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Operating System
-                  </label>
-                  <input
-                    type="text"
-                    value={executionData.os}
-                    onChange={(e) => setExecutionData({ ...executionData, os: e.target.value })}
-                    className="input"
-                    placeholder="e.g., Windows 11"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Execution Time (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    value={executionData.executionTime}
-                    onChange={(e) => setExecutionData({ ...executionData, executionTime: e.target.value })}
-                    className="input"
-                    min="0"
-                    step="0.1"
-                    placeholder="e.g., 5.5"
-                  />
-                </div>
-              </div>
-
-              {/* Actual Result */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Actual Result
-                </label>
-                <textarea
-                  value={executionData.actualResult}
-                  onChange={(e) => setExecutionData({ ...executionData, actualResult: e.target.value })}
-                  className="input"
-                  rows="3"
-                  placeholder="Describe what actually happened during the test..."
-                />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes / Comments
-                </label>
-                <textarea
-                  value={executionData.notes}
-                  onChange={(e) => setExecutionData({ ...executionData, notes: e.target.value })}
-                  className="input"
-                  rows="3"
-                  placeholder="Additional notes, observations, or issues..."
-                />
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button 
-                  type="submit" 
-                  className="btn btn-success flex-1 flex items-center justify-center gap-2"
-                  disabled={!executionData.status}
-                >
-                  <Save size={20} />
+              {/* Execution Form */}
+              <div className="card">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Save size={20} className="text-primary-600" />
                   Record Execution
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setSelectedTest(null)} 
-                  className="btn btn-secondary flex-1"
-                >
-                  Cancel
-                </button>
+                </h2>
+
+                <form onSubmit={handleSubmitExecution} className="space-y-4">
+                  {/* Test Result Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Test Result *
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setExecutionData({ ...executionData, status: 'pass' })}
+                        className={getStatusButtonClass('pass')}
+                      >
+                        <CheckCircle2 size={20} />
+                        Pass
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExecutionData({ ...executionData, status: 'fail' })}
+                        className={getStatusButtonClass('fail')}
+                      >
+                        <XCircle size={20} />
+                        Fail
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExecutionData({ ...executionData, status: 'blocked' })}
+                        className={getStatusButtonClass('blocked')}
+                      >
+                        <AlertCircle size={20} />
+                        Blocked
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExecutionData({ ...executionData, status: 'skipped' })}
+                        className={getStatusButtonClass('skipped')}
+                      >
+                        <Clock size={20} />
+                        Skipped
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Environment & Version */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Environment *
+                      </label>
+                      <select
+                        value={executionData.environment}
+                        onChange={(e) => setExecutionData({ ...executionData, environment: e.target.value })}
+                        className="input"
+                        required
+                      >
+                        <option value="production">Production</option>
+                        <option value="staging">Staging</option>
+                        <option value="development">Development</option>
+                        <option value="qa">QA</option>
+                        <option value="uat">UAT</option>
+                        <option value="local">Local</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Version
+                      </label>
+                      <input
+                        type="text"
+                        value={executionData.version}
+                        onChange={(e) => setExecutionData({ ...executionData, version: e.target.value })}
+                        className="input"
+                        placeholder="e.g., v1.2.3"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Device & Browser */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Device Type *
+                      </label>
+                      <select
+                        value={executionData.deviceType}
+                        onChange={(e) => setExecutionData({ ...executionData, deviceType: e.target.value })}
+                        className="input"
+                        required
+                      >
+                        <option value="desktop">Desktop</option>
+                        <option value="mobile">Mobile</option>
+                        <option value="tablet">Tablet</option>
+                        <option value="api">API</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Browser
+                      </label>
+                      <input
+                        type="text"
+                        value={executionData.browser}
+                        onChange={(e) => setExecutionData({ ...executionData, browser: e.target.value })}
+                        className="input"
+                        placeholder="e.g., Chrome 120"
+                      />
+                    </div>
+                  </div>
+
+                  {/* OS & Execution Time */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Operating System
+                      </label>
+                      <input
+                        type="text"
+                        value={executionData.os}
+                        onChange={(e) => setExecutionData({ ...executionData, os: e.target.value })}
+                        className="input"
+                        placeholder="e.g., Windows 11"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Execution Time (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        value={executionData.executionTime}
+                        onChange={(e) => setExecutionData({ ...executionData, executionTime: e.target.value })}
+                        className="input"
+                        min="0"
+                        step="0.1"
+                        placeholder="e.g., 5.5"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actual Result */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Actual Result
+                    </label>
+                    <textarea
+                      value={executionData.actualResult}
+                      onChange={(e) => setExecutionData({ ...executionData, actualResult: e.target.value })}
+                      className="input"
+                      rows="3"
+                      placeholder="Describe what actually happened during the test..."
+                    />
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Notes / Comments
+                    </label>
+                    <textarea
+                      value={executionData.notes}
+                      onChange={(e) => setExecutionData({ ...executionData, notes: e.target.value })}
+                      className="input"
+                      rows="3"
+                      placeholder="Additional notes, observations, or issues..."
+                    />
+                  </div>
+
+                  {/* Submit Buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="submit"
+                      className="btn btn-success flex-1 flex items-center justify-center gap-2"
+                      disabled={!executionData.status}
+                    >
+                      <Save size={20} />
+                      Record Execution
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTest(null)}
+                      className="btn btn-secondary flex-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+            </>
           )}
         </div>
       </div>

@@ -15,7 +15,11 @@
       "Bash(curl -s -X POST http://localhost:3001/api/testcases -H \"Content-Type: application/json\" -d '{:*)",
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  - {s[\"\"title\"\"]} \\({s[\"\"status\"\"]}\\)''''\\) for s in data]\")",
       "Bash(curl -s http://localhost:3001/api/testcases/folder/69c00d7bdec4698ef4d6322b)",
-      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  - {tc[\"\"name\"\"]}''''\\) for tc in data]\")"
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  - {tc[\"\"name\"\"]}''''\\) for tc in data]\")",
+      "Bash(wc -l \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\\\\src\\\\pages\\\\TestFolders.jsx\")",
+      "Bash(find \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\\\\server\\\\models\" -type f -name \"*.js\")",
+      "Bash(ls -la \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\\\\src\\\\pages\")",
+      "Bash(find \"C:\\\\Users\\\\rgaff\\\\Documents\\\\Projects \\(Local\\)\\\\speedtestersxp\" -maxdepth 2 -name \"package.json\" -o -name \"*.md\")"
     ]
   }
 }

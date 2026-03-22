@@ -14,19 +14,20 @@ import {
 } from 'lucide-react'
 
 function TestFolders() {
-  const { 
-    folders, 
-    testStories, 
-    testCases, 
-    addFolder, 
-    updateFolder, 
+  const {
+    folders,
+    testStories,
+    testCases,
+    devTasks,
+    addFolder,
+    updateFolder,
     deleteFolder,
     addTestStory,
     updateTestStory,
     deleteTestStory,
-    addTestCase, 
-    updateTestCase, 
-    deleteTestCase 
+    addTestCase,
+    updateTestCase,
+    deleteTestCase
   } = useData()
   const { user } = useAuth()
   const [expandedFolders, setExpandedFolders] = useState(new Set())
@@ -123,7 +124,13 @@ function TestFolders() {
           <h1 className="text-4xl font-bold text-primary-800">
             📖 User Stories
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">Create user stories and attach test cases</p>
+          <p className="text-gray-600 mt-2 text-lg">
+            Create user stories and attach test cases
+            <span className="ml-3 inline-flex items-center gap-2 text-sm">
+              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{testStories.length} {testStories.length === 1 ? 'story' : 'stories'}</span>
+              <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">{testCases.length} test {testCases.length === 1 ? 'case' : 'cases'}</span>
+            </span>
+          </p>
         </div>
         {user?.role === 'admin' && (
           <button onClick={handleAddFolder} className="btn btn-primary flex items-center gap-2">
@@ -166,6 +173,7 @@ function TestFolders() {
               folders={folders}
               testStories={testStories}
               testCases={testCases}
+              devTasks={devTasks}
               expandedFolders={expandedFolders}
               expandedStories={expandedStories}
               toggleFolder={toggleFolder}
@@ -238,7 +246,7 @@ function TestFolders() {
 }
 
 function FolderCard({
-  folder, folders, testStories, testCases,
+  folder, folders, testStories, testCases, devTasks,
   expandedFolders, expandedStories, toggleFolder, toggleStory,
   handleAddStory, handleEditFolder, handleDeleteFolder,
   handleEditStory, handleDeleteStory,
@@ -248,6 +256,22 @@ function FolderCard({
   const folderStories = testStories.filter(ts => ts.folderId === folder.id)
   const childFolders = folders.filter(f => f.parentId === folder.id)
   const isExpanded = expandedFolders.has(folder.id)
+
+  // Recursively count all stories and test cases under this folder (including subfolders)
+  const countAllStories = (folderId) => {
+    let count = testStories.filter(ts => ts.folderId === folderId).length
+    const children = folders.filter(f => f.parentId === folderId)
+    children.forEach(child => { count += countAllStories(child.id) })
+    return count
+  }
+  const countAllTestCases = (folderId) => {
+    let count = testCases.filter(tc => tc.folderId === folderId).length
+    const children = folders.filter(f => f.parentId === folderId)
+    children.forEach(child => { count += countAllTestCases(child.id) })
+    return count
+  }
+  const totalStories = countAllStories(folder.id)
+  const totalTests = countAllTestCases(folder.id)
 
   const priorityColors = {
     'critical': 'text-red-600 bg-red-50 border-red-200',
@@ -283,7 +307,10 @@ function FolderCard({
             {folder.description && <p className="text-sm text-gray-600 mt-1">{folder.description}</p>}
             <div className="flex items-center gap-4 mt-2">
               <span className="text-xs text-gray-500">
-                {folderStories.length} user {folderStories.length === 1 ? 'story' : 'stories'}
+                {totalStories} user {totalStories === 1 ? 'story' : 'stories'}
+              </span>
+              <span className="text-xs text-gray-500">
+                {totalTests} test {totalTests === 1 ? 'case' : 'cases'}
               </span>
               {childFolders.length > 0 && (
                 <span className="text-xs text-gray-500">
@@ -332,6 +359,7 @@ function FolderCard({
                     folders={folders}
                     testStories={testStories}
                     testCases={testCases}
+                    devTasks={devTasks}
                     expandedFolders={expandedFolders}
                     expandedStories={expandedStories}
                     toggleFolder={toggleFolder}
@@ -368,6 +396,10 @@ function FolderCard({
                 {folderStories.map((story) => {
                   const storyCases = testCases.filter(tc => tc.testStoryId === story.id)
                   const isStoryExpanded = expandedStories.has(story.id)
+                  // Find dev tasks linked to this story (from either direction)
+                  const linkedDevTasks = devTasks.filter(dt =>
+                    dt.relatedTestStoryIds?.includes(story.id) || story.relatedDevTaskIds?.includes(dt.id)
+                  )
 
                   return (
                     <div key={story.id} className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
@@ -420,6 +452,11 @@ function FolderCard({
                               <span className="text-xs text-gray-600">
                                 {storyCases.length} test {storyCases.length === 1 ? 'case' : 'cases'}
                               </span>
+                              {linkedDevTasks.length > 0 && (
+                                <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  🔧 {linkedDevTasks.length} dev {linkedDevTasks.length === 1 ? 'task' : 'tasks'}
+                                </span>
+                              )}
                               {story.assignedTo && (
                                 <span className="text-xs text-gray-600 flex items-center gap-1">
                                   <User size={12} />
@@ -471,6 +508,9 @@ function FolderCard({
                             </div>
                           ) : (
                             storyCases.map((test) => {
+                              const testLinkedDevTasks = devTasks.filter(dt =>
+                                dt.relatedTestCaseIds?.includes(test.id) || test.relatedDevTaskIds?.includes(dt.id)
+                              )
                               const testPriorityColors = {
                                 'critical': 'text-red-600 bg-red-50 border-red-200',
                                 'high': 'text-orange-600 bg-orange-50 border-orange-200',
@@ -506,6 +546,11 @@ function FolderCard({
                                         <p className="text-xs text-gray-500 mt-1">
                                           {test.testSteps.split('\n')[0]}...
                                         </p>
+                                      )}
+                                      {testLinkedDevTasks.length > 0 && (
+                                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+                                          🔧 {testLinkedDevTasks.length} dev {testLinkedDevTasks.length === 1 ? 'task' : 'tasks'}
+                                        </span>
                                       )}
                                     </div>
 
@@ -607,6 +652,7 @@ function FolderModal({ folder, onClose, onSave }) {
 }
 
 function TestStoryModal({ story, folderId, onClose, onSave }) {
+  const { devTasks, folders } = useData()
   const [title, setTitle] = useState(story?.title || '')
   const [description, setDescription] = useState(story?.description || '')
   const [userStory, setUserStory] = useState(story?.userStory || '')
@@ -614,18 +660,42 @@ function TestStoryModal({ story, folderId, onClose, onSave }) {
   const [priority, setPriority] = useState(story?.priority || 'medium')
   const [status, setStatus] = useState(story?.status || 'draft')
   const [assignedTo, setAssignedTo] = useState(story?.assignedTo || '')
+  const [relatedDevTaskIds, setRelatedDevTaskIds] = useState(story?.relatedDevTaskIds || [])
   const [newCriterion, setNewCriterion] = useState('')
+
+  // Get all folder IDs (including parent chain) to find relevant dev tasks
+  const getAllRelatedFolderIds = (fId) => {
+    const ids = [fId]
+    const folder = folders.find(f => f.id === fId)
+    if (folder?.parentId) {
+      ids.push(...getAllRelatedFolderIds(folder.parentId))
+    }
+    const children = folders.filter(f => f.parentId === fId)
+    children.forEach(child => ids.push(child.id))
+    return [...new Set(ids)]
+  }
+  const relevantFolderIds = folderId ? getAllRelatedFolderIds(folderId) : []
+  const availableDevTasks = devTasks.filter(dt => relevantFolderIds.includes(dt.folderId))
+
+  const toggleDevTask = (taskId) => {
+    if (relatedDevTaskIds.includes(taskId)) {
+      setRelatedDevTaskIds(relatedDevTaskIds.filter(id => id !== taskId))
+    } else {
+      setRelatedDevTaskIds([...relatedDevTaskIds, taskId])
+    }
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSave({ 
-      title, 
-      description, 
+    onSave({
+      title,
+      description,
       userStory,
       acceptanceCriteria,
       priority,
       status,
-      assignedTo
+      assignedTo,
+      relatedDevTaskIds
     })
   }
 
@@ -775,6 +845,27 @@ function TestStoryModal({ story, folderId, onClose, onSave }) {
               </div>
             </div>
           </div>
+
+          {availableDevTasks.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                🔧 Related Dev Tasks
+              </label>
+              <div className="max-h-32 overflow-y-auto space-y-1 border border-gray-200 rounded p-2">
+                {availableDevTasks.map(task => (
+                  <label key={task.id} className="flex items-center gap-2 p-1 hover:bg-purple-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={relatedDevTaskIds.includes(task.id)}
+                      onChange={() => toggleDevTask(task.id)}
+                      className="rounded text-purple-600"
+                    />
+                    <span className="text-sm">{task.title}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">

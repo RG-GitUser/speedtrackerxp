@@ -37,6 +37,10 @@ const devTaskSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
+  relatedTestStoryIds: [{
+    type: String,
+    trim: true
+  }],
   relatedTestCaseIds: [{
     type: String,
     trim: true

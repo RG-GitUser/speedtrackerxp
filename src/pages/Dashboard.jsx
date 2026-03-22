@@ -13,7 +13,7 @@ import {
 import { format } from 'date-fns'
 
 function Dashboard() {
-  const { folders, testCases, testRuns, loading } = useData()
+  const { folders, testStories, testCases, testRuns, testExecutions, loading } = useData()
   const { user } = useAuth()
 
   if (loading) {
@@ -27,33 +27,40 @@ function Dashboard() {
     )
   }
 
+  // Filter out anything from February or earlier
+  const marchCutoff = new Date('2026-03-01T00:00:00')
+
   // Calculate statistics
-  const totalFolders = folders.length
+  const totalProjects = folders.filter(f => !f.parentId).length
+  const totalUserStories = testStories.length
   const totalTestCases = testCases.length
-  const totalRuns = testRuns.length
 
-  // Recent test runs (last 5)
-  const recentRuns = testRuns.slice(0, 5)
+  // Use actual test executions (from Execute Tests page), filtered to recent
+  const recentExecutions = testExecutions
+    .filter(e => new Date(e.executedAt || e.createdAt) >= marchCutoff)
+    .sort((a, b) => new Date(b.executedAt || b.createdAt) - new Date(a.executedAt || a.createdAt))
 
-  // Pass/Fail statistics
-  const passedTests = testRuns.reduce((sum, run) => {
-    return sum + run.tests.filter(t => t.status === 'passed').length
-  }, 0)
+  const totalExecutions = recentExecutions.length
 
-  const failedTests = testRuns.reduce((sum, run) => {
-    return sum + run.tests.filter(t => t.status === 'failed').length
-  }, 0)
+  // Pass/Fail statistics from actual executions
+  const passedTests = recentExecutions.filter(e => e.status === 'pass').length
+  const failedTests = recentExecutions.filter(e => e.status === 'fail').length
+  const blockedTests = recentExecutions.filter(e => e.status === 'blocked').length
 
-  const totalTestsRun = passedTests + failedTests
+  const totalTestsRun = passedTests + failedTests + blockedTests
   const passRate = totalTestsRun > 0 ? Math.round((passedTests / totalTestsRun) * 100) : 0
+
+  // Recent 5 executions for the list
+  const latestExecutions = recentExecutions.slice(0, 5)
 
   // Tests assigned to current user
   const myAssignedTests = testCases.filter(tc => tc.assignedTo === user?.id)
 
   const stats = [
-    { label: 'Test Folders', value: totalFolders, icon: FolderTree, color: 'bg-primary-800' },
-    { label: 'Test Cases', value: totalTestCases, icon: FileCheck, color: 'bg-primary-700' },
-    { label: 'Total Runs', value: totalRuns, icon: Play, color: 'bg-primary-600' },
+    { label: 'Projects', value: totalProjects, icon: FolderTree, color: 'bg-primary-800' },
+    { label: 'User Stories', value: totalUserStories, icon: FileCheck, color: 'bg-primary-700' },
+    { label: 'Test Cases', value: totalTestCases, icon: Play, color: 'bg-primary-600' },
+    { label: 'Executions', value: totalExecutions, icon: CheckCircle2, color: 'bg-blue-600' },
     { label: 'Pass Rate', value: `${passRate}%`, icon: TrendingUp, color: 'bg-green-600' }
   ]
 
@@ -68,7 +75,7 @@ function Dashboard() {
       </div>
 
       {/* Statistics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
         {stats.map((stat) => (
           <div key={stat.label} className="card">
             <div className="flex items-center justify-between">
@@ -85,60 +92,58 @@ function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Test Runs */}
+        {/* Recent Executions */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Test Runs</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Recent Executions</h2>
             <Link to="/history" className="text-sm text-primary-600 hover:text-primary-700">
               View All
             </Link>
           </div>
 
-          {recentRuns.length === 0 ? (
+          {latestExecutions.length === 0 ? (
             <div className="text-center py-8">
               <Clock size={48} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No test runs yet</p>
+              <p className="text-gray-500">No test executions yet</p>
               <Link to="/execute" className="text-primary-600 hover:text-primary-700 text-sm mt-2 inline-block">
-                Run your first test
+                Execute your first test
               </Link>
             </div>
           ) : (
             <div className="space-y-3">
-              {recentRuns.map((run) => {
-                const passed = run.tests.filter(t => t.status === 'passed').length
-                const failed = run.tests.filter(t => t.status === 'failed').length
-                const total = run.tests.length
+              {latestExecutions.map((execution) => {
+                const testCase = testCases.find(tc => tc.id === execution.testCaseId)
+
+                const statusConfig = {
+                  'pass': { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-100 text-green-700 border-green-300', label: 'PASS' },
+                  'fail': { icon: XCircle, color: 'text-red-600', bg: 'bg-red-100 text-red-700 border-red-300', label: 'FAIL' },
+                  'blocked': { icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100 text-orange-700 border-orange-300', label: 'BLOCKED' },
+                  'skipped': { icon: Clock, color: 'text-gray-600', bg: 'bg-gray-100 text-gray-700 border-gray-300', label: 'SKIPPED' }
+                }
+
+                const config = statusConfig[execution.status] || statusConfig['skipped']
+                const StatusIcon = config.icon
 
                 return (
                   <Link
-                    key={run.id}
-                    to={`/history?run=${run.id}`}
+                    key={execution.id}
+                    to="/history"
                     className="block border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-sm transition-all"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-500">
-                        {format(new Date(run.createdAt), 'MMM d, yyyy h:mm a')}
-                      </span>
-                      <span className={`badge ${
-                        run.status === 'completed' ? 'badge-success' :
-                        run.status === 'failed' ? 'badge-error' :
-                        'badge-info'
-                      }`}>
-                        {run.status}
+                      <div className="flex items-center gap-2">
+                        <StatusIcon size={18} className={config.color} />
+                        <span className="font-medium text-gray-900 text-sm">
+                          {testCase?.name || 'Unknown Test'}
+                        </span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${config.bg}`}>
+                        {config.label}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-1 text-green-600">
-                        <CheckCircle2 size={16} />
-                        <span>{passed} passed</span>
-                      </div>
-                      {failed > 0 && (
-                        <div className="flex items-center gap-1 text-red-600">
-                          <XCircle size={16} />
-                          <span>{failed} failed</span>
-                        </div>
-                      )}
-                      <span className="text-gray-500">of {total}</span>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span>{format(new Date(execution.executedAt || execution.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                      <span className="bg-gray-100 px-2 py-0.5 rounded">{execution.environment}</span>
                     </div>
                   </Link>
                 )
