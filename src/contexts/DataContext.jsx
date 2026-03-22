@@ -15,9 +15,12 @@ const API_URL = 'http://localhost:3001/api'
 
 export function DataProvider({ children }) {
   const [folders, setFolders] = useState([])
+  const [testStories, setTestStories] = useState([])
   const [testCases, setTestCases] = useState([])
   const [testRuns, setTestRuns] = useState([])
   const [comments, setComments] = useState([])
+  const [devTasks, setDevTasks] = useState([])
+  const [testExecutions, setTestExecutions] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Fetch all data from MongoDB on mount
@@ -30,18 +33,24 @@ export function DataProvider({ children }) {
       setLoading(true)
       
       // Fetch all data in parallel
-      const [foldersRes, testCasesRes, testRunsRes, commentsRes] = await Promise.all([
+      const [foldersRes, testStoriesRes, testCasesRes, testRunsRes, commentsRes, devTasksRes, testExecutionsRes] = await Promise.all([
         fetch(`${API_URL}/folders`),
+        fetch(`${API_URL}/teststories`),
         fetch(`${API_URL}/testcases`),
         fetch(`${API_URL}/testruns`),
-        fetch(`${API_URL}/comments`)
+        fetch(`${API_URL}/comments`),
+        fetch(`${API_URL}/devtasks`),
+        fetch(`${API_URL}/testexecutions`)
       ])
 
-      const [foldersData, testCasesData, testRunsData, commentsData] = await Promise.all([
+      const [foldersData, testStoriesData, testCasesData, testRunsData, commentsData, devTasksData, testExecutionsData] = await Promise.all([
         foldersRes.json(),
+        testStoriesRes.json(),
         testCasesRes.json(),
         testRunsRes.json(),
-        commentsRes.json()
+        commentsRes.json(),
+        devTasksRes.json(),
+        testExecutionsRes.json()
       ])
 
       // Convert MongoDB _id to id for frontend compatibility
@@ -52,17 +61,23 @@ export function DataProvider({ children }) {
       }))
 
       setFolders(formatData(foldersData))
+      setTestStories(formatData(testStoriesData))
       setTestCases(formatData(testCasesData))
       setTestRuns(formatData(testRunsData))
       setComments(formatData(commentsData))
+      setDevTasks(formatData(devTasksData))
+      setTestExecutions(formatData(testExecutionsData))
 
     } catch (error) {
       console.error('Error fetching data:', error)
       // Fallback to empty arrays if backend is not available
       setFolders([])
+      setTestStories([])
       setTestCases([])
       setTestRuns([])
       setComments([])
+      setDevTasks([])
+      setTestExecutions([])
     } finally {
       setLoading(false)
     }
@@ -115,10 +130,68 @@ export function DataProvider({ children }) {
       })
 
       setFolders(folders.filter(f => f.id !== id))
+      setTestStories(testStories.filter(ts => ts.folderId !== id))
       setTestCases(testCases.filter(tc => tc.folderId !== id))
 
     } catch (error) {
       console.error('Error deleting folder:', error)
+      throw error
+    }
+  }
+
+  // Test story operations
+  const addTestStory = async (testStory) => {
+    try {
+      const folderTestStories = testStories.filter(ts => ts.folderId === testStory.folderId)
+      
+      const response = await fetch(`${API_URL}/teststories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...testStory,
+          order: folderTestStories.length
+        })
+      })
+
+      const newTestStory = await response.json()
+      const formattedTestStory = { ...newTestStory, id: newTestStory._id }
+      setTestStories([...testStories, formattedTestStory])
+      return formattedTestStory
+
+    } catch (error) {
+      console.error('Error adding test story:', error)
+      throw error
+    }
+  }
+
+  const updateTestStory = async (id, updates) => {
+    try {
+      const response = await fetch(`${API_URL}/teststories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+
+      const updatedTestStory = await response.json()
+      setTestStories(testStories.map(ts => ts.id === id ? { ...updatedTestStory, id: updatedTestStory._id } : ts))
+
+    } catch (error) {
+      console.error('Error updating test story:', error)
+      throw error
+    }
+  }
+
+  const deleteTestStory = async (id) => {
+    try {
+      await fetch(`${API_URL}/teststories/${id}`, {
+        method: 'DELETE'
+      })
+
+      setTestStories(testStories.filter(ts => ts.id !== id))
+      setTestCases(testCases.filter(tc => tc.testStoryId !== id))
+
+    } catch (error) {
+      console.error('Error deleting test story:', error)
       throw error
     }
   }
@@ -279,15 +352,128 @@ export function DataProvider({ children }) {
     }
   }
 
+  // Dev task operations
+  const addDevTask = async (devTask) => {
+    try {
+      const folderDevTasks = devTasks.filter(dt => dt.folderId === devTask.folderId)
+      
+      const response = await fetch(`${API_URL}/devtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...devTask,
+          order: folderDevTasks.length
+        })
+      })
+
+      const newDevTask = await response.json()
+      const formattedDevTask = { ...newDevTask, id: newDevTask._id }
+      setDevTasks([...devTasks, formattedDevTask])
+      return formattedDevTask
+
+    } catch (error) {
+      console.error('Error adding dev task:', error)
+      throw error
+    }
+  }
+
+  const updateDevTask = async (id, updates) => {
+    try {
+      const response = await fetch(`${API_URL}/devtasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+
+      const updatedDevTask = await response.json()
+      setDevTasks(devTasks.map(dt => dt.id === id ? { ...updatedDevTask, id: updatedDevTask._id } : dt))
+
+    } catch (error) {
+      console.error('Error updating dev task:', error)
+      throw error
+    }
+  }
+
+  const deleteDevTask = async (id) => {
+    try {
+      await fetch(`${API_URL}/devtasks/${id}`, {
+        method: 'DELETE'
+      })
+
+      setDevTasks(devTasks.filter(dt => dt.id !== id))
+
+    } catch (error) {
+      console.error('Error deleting dev task:', error)
+      throw error
+    }
+  }
+
+  // Test execution operations
+  const addTestExecution = async (testExecution) => {
+    try {
+      const response = await fetch(`${API_URL}/testexecutions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testExecution)
+      })
+
+      const newExecution = await response.json()
+      const formattedExecution = { ...newExecution, id: newExecution._id }
+      setTestExecutions([formattedExecution, ...testExecutions])
+      return formattedExecution
+
+    } catch (error) {
+      console.error('Error adding test execution:', error)
+      throw error
+    }
+  }
+
+  const updateTestExecution = async (id, updates) => {
+    try {
+      const response = await fetch(`${API_URL}/testexecutions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+
+      const updatedExecution = await response.json()
+      setTestExecutions(testExecutions.map(te => te.id === id ? { ...updatedExecution, id: updatedExecution._id } : te))
+
+    } catch (error) {
+      console.error('Error updating test execution:', error)
+      throw error
+    }
+  }
+
+  const deleteTestExecution = async (id) => {
+    try {
+      await fetch(`${API_URL}/testexecutions/${id}`, {
+        method: 'DELETE'
+      })
+
+      setTestExecutions(testExecutions.filter(te => te.id !== id))
+
+    } catch (error) {
+      console.error('Error deleting test execution:', error)
+      throw error
+    }
+  }
+
   const value = {
     folders,
+    testStories,
     testCases,
     testRuns,
     comments,
+    devTasks,
+    testExecutions,
     loading,
     addFolder,
     updateFolder,
     deleteFolder,
+    addTestStory,
+    updateTestStory,
+    deleteTestStory,
     addTestCase,
     updateTestCase,
     deleteTestCase,
@@ -296,6 +482,12 @@ export function DataProvider({ children }) {
     updateTestInRun,
     addComment,
     deleteComment,
+    addDevTask,
+    updateDevTask,
+    deleteDevTask,
+    addTestExecution,
+    updateTestExecution,
+    deleteTestExecution,
     refreshData: fetchAllData
   }
 

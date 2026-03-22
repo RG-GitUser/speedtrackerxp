@@ -1,300 +1,331 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useData } from '../contexts/DataContext'
-import { useAuth } from '../contexts/AuthContext'
-import { format } from 'date-fns'
-import {
-  CheckCircle2,
-  XCircle,
+import { 
+  History, 
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle, 
   Clock,
-  MessageSquare,
-  Send,
-  Trash2,
+  Calendar,
+  Monitor,
+  Code,
+  Filter,
   ChevronDown,
   ChevronRight
 } from 'lucide-react'
+import { format } from 'date-fns'
 
 function TestHistory() {
-  const { testRuns, testCases, comments, addComment, deleteComment } = useData()
-  const { user } = useAuth()
-  const [selectedRun, setSelectedRun] = useState(null)
-  const [expandedTests, setExpandedTests] = useState(new Set())
-  const [commentText, setCommentText] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const { testExecutions, testCases, folders } = useData()
+  const [selectedFolder, setSelectedFolder] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState('')
+  const [selectedEnvironment, setSelectedEnvironment] = useState('')
+  const [expandedExecution, setExpandedExecution] = useState(null)
 
-  const filteredRuns = filterStatus === 'all'
-    ? testRuns
-    : testRuns.filter(run => run.status === filterStatus)
-
-  const toggleTestDetails = (testId) => {
-    const newExpanded = new Set(expandedTests)
-    if (newExpanded.has(testId)) {
-      newExpanded.delete(testId)
-    } else {
-      newExpanded.add(testId)
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'pass': return <CheckCircle2 className="text-green-600" size={20} />
+      case 'fail': return <XCircle className="text-red-600" size={20} />
+      case 'blocked': return <AlertCircle className="text-orange-600" size={20} />
+      case 'skipped': return <Clock className="text-gray-600" size={20} />
+      default: return null
     }
-    setExpandedTests(newExpanded)
   }
 
-  const handleAddComment = (e) => {
-    e.preventDefault()
-    if (!commentText.trim() || !selectedRun) return
-
-    addComment({
-      testRunId: selectedRun.id,
-      userId: user.id,
-      userName: user.name,
-      text: commentText
-    })
-    setCommentText('')
+  const getStatusBadgeClass = (status) => {
+    const classes = {
+      'pass': 'bg-green-100 text-green-700 border-green-300',
+      'fail': 'bg-red-100 text-red-700 border-red-300',
+      'blocked': 'bg-orange-100 text-orange-700 border-orange-300',
+      'skipped': 'bg-gray-100 text-gray-700 border-gray-300',
+      'in-progress': 'bg-blue-100 text-blue-700 border-blue-300'
+    }
+    return classes[status] || classes['skipped']
   }
 
-  const runComments = selectedRun
-    ? comments.filter(c => c.testRunId === selectedRun.id)
-    : []
+  const getEnvironmentColor = (env) => {
+    const colors = {
+      'production': 'bg-red-50 text-red-700',
+      'staging': 'bg-yellow-50 text-yellow-700',
+      'development': 'bg-green-50 text-green-700',
+      'qa': 'bg-blue-50 text-blue-700',
+      'uat': 'bg-purple-50 text-purple-700',
+      'local': 'bg-gray-50 text-gray-700'
+    }
+    return colors[env] || colors['local']
+  }
+
+  // Filter executions
+  const filteredExecutions = testExecutions.filter(execution => {
+    const testCase = testCases.find(tc => tc.id === execution.testCaseId)
+    
+    if (selectedFolder && testCase?.folderId !== selectedFolder) return false
+    if (selectedStatus && execution.status !== selectedStatus) return false
+    if (selectedEnvironment && execution.environment !== selectedEnvironment) return false
+    
+    return true
+  })
+
+  // Calculate statistics
+  const stats = {
+    total: filteredExecutions.length,
+    passed: filteredExecutions.filter(e => e.status === 'pass').length,
+    failed: filteredExecutions.filter(e => e.status === 'fail').length,
+    blocked: filteredExecutions.filter(e => e.status === 'blocked').length,
+    passRate: filteredExecutions.length > 0 
+      ? Math.round((filteredExecutions.filter(e => e.status === 'pass').length / filteredExecutions.length) * 100)
+      : 0
+  }
 
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-primary-800">
-          🏁 Test History
+        <h1 className="text-4xl font-bold text-primary-800 flex items-center gap-3">
+          <History size={40} />
+          Test Execution History
         </h1>
-        <p className="text-gray-600 mt-2 text-lg">Track and analyze test runs over time</p>
+        <p className="text-gray-600 mt-2 text-lg">View and analyze past test executions</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Test Runs List */}
-        <div className="lg:col-span-1">
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Test Runs</h2>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1"
-              >
-                <option value="all">All</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-                <option value="running">Running</option>
-              </select>
-            </div>
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="card">
+          <p className="text-sm text-gray-600 font-medium">Total Executions</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600 font-medium">Passed</p>
+          <p className="text-3xl font-bold text-green-600 mt-2">{stats.passed}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600 font-medium">Failed</p>
+          <p className="text-3xl font-bold text-red-600 mt-2">{stats.failed}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600 font-medium">Blocked</p>
+          <p className="text-3xl font-bold text-orange-600 mt-2">{stats.blocked}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600 font-medium">Pass Rate</p>
+          <p className="text-3xl font-bold text-primary-600 mt-2">{stats.passRate}%</p>
+        </div>
+      </div>
 
-            {filteredRuns.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Clock size={48} className="mx-auto mb-3 text-gray-300" />
-                <p>No test runs yet</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
-                {filteredRuns.map(run => {
-                  const passed = run.tests.filter(t => t.status === 'passed').length
-                  const failed = run.tests.filter(t => t.status === 'failed').length
-                  const total = run.tests.length
+      {/* Filters */}
+      <div className="card mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter size={20} className="text-gray-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Folder
+            </label>
+            <select
+              value={selectedFolder}
+              onChange={(e) => setSelectedFolder(e.target.value)}
+              className="input"
+            >
+              <option value="">All Folders</option>
+              {folders.map(folder => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                  return (
-                    <button
-                      key={run.id}
-                      onClick={() => {
-                        setSelectedRun(run)
-                        setExpandedTests(new Set())
-                      }}
-                      className={`w-full text-left border-2 rounded-lg p-3 transition-colors ${
-                        selectedRun?.id === run.id
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-500">
-                          {format(new Date(run.createdAt), 'MMM d, h:mm a')}
-                        </span>
-                        <span className={`badge ${
-                          run.status === 'completed' ? 'badge-success' :
-                          run.status === 'failed' ? 'badge-error' :
-                          'badge-info'
-                        }`}>
-                          {run.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <div className="flex items-center gap-1 text-green-600">
-                          <CheckCircle2 size={14} />
-                          <span>{passed}</span>
-                        </div>
-                        {failed > 0 && (
-                          <div className="flex items-center gap-1 text-red-600">
-                            <XCircle size={14} />
-                            <span>{failed}</span>
-                          </div>
-                        )}
-                        <span className="text-gray-500">/ {total}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="input"
+            >
+              <option value="">All Statuses</option>
+              <option value="pass">Pass</option>
+              <option value="fail">Fail</option>
+              <option value="blocked">Blocked</option>
+              <option value="skipped">Skipped</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Environment
+            </label>
+            <select
+              value={selectedEnvironment}
+              onChange={(e) => setSelectedEnvironment(e.target.value)}
+              className="input"
+            >
+              <option value="">All Environments</option>
+              <option value="production">Production</option>
+              <option value="staging">Staging</option>
+              <option value="development">Development</option>
+              <option value="qa">QA</option>
+              <option value="uat">UAT</option>
+              <option value="local">Local</option>
+            </select>
           </div>
         </div>
+      </div>
 
-        {/* Test Run Details */}
-        <div className="lg:col-span-2">
-          {!selectedRun ? (
-            <div className="card text-center py-12">
-              <Clock size={64} className="mx-auto text-gray-300 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">Select a test run</h3>
-              <p className="text-gray-600">Choose a test run from the list to view details</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Run Summary */}
-              <div className="card">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                      Test Run Details
-                    </h2>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {format(new Date(selectedRun.createdAt), 'MMMM d, yyyy • h:mm a')}
-                    </p>
-                  </div>
-                  <span className={`badge ${
-                    selectedRun.status === 'completed' ? 'badge-success' :
-                    selectedRun.status === 'failed' ? 'badge-error' :
-                    'badge-info'
-                  }`}>
-                    {selectedRun.status}
-                  </span>
-                </div>
+      {/* Execution List */}
+      <div className="card">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Execution Records</h2>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-900">
-                      {selectedRun.tests.length}
-                    </p>
-                    <p className="text-sm text-gray-600">Total Tests</p>
-                  </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">
-                      {selectedRun.tests.filter(t => t.status === 'passed').length}
-                    </p>
-                    <p className="text-sm text-gray-600">Passed</p>
-                  </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <p className="text-2xl font-bold text-red-600">
-                      {selectedRun.tests.filter(t => t.status === 'failed').length}
-                    </p>
-                    <p className="text-sm text-gray-600">Failed</p>
-                  </div>
-                </div>
-              </div>
+        {filteredExecutions.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <History size={48} className="mx-auto mb-3 text-gray-300" />
+            <p>No test executions found</p>
+            <p className="text-sm mt-1">Execute some tests to see history here</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredExecutions.map(execution => {
+              const testCase = testCases.find(tc => tc.id === execution.testCaseId)
+              const folder = folders.find(f => f.id === testCase?.folderId)
+              const isExpanded = expandedExecution === execution.id
 
-              {/* Test Details */}
-              <div className="card">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Test Cases</h3>
-                <div className="space-y-3">
-                  {selectedRun.tests.map(test => {
-                    const testCase = testCases.find(tc => tc.id === test.testCaseId)
-                    const isExpanded = expandedTests.has(test.testCaseId)
+              return (
+                <div 
+                  key={execution.id} 
+                  className="border-2 border-gray-200 rounded-lg p-4 hover:border-primary-300 transition-colors"
+                >
+                  <div 
+                    className="flex items-start justify-between cursor-pointer"
+                    onClick={() => setExpandedExecution(isExpanded ? null : execution.id)}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        {getStatusIcon(execution.status)}
+                        <h3 className="font-semibold text-gray-900">
+                          {testCase?.name || 'Unknown Test'}
+                        </h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClass(execution.status)}`}>
+                          {execution.status.toUpperCase()}
+                        </span>
+                      </div>
 
-                    return (
-                      <div key={test.testCaseId} className="border border-gray-200 rounded-lg">
-                        <button
-                          onClick={() => toggleTestDetails(test.testCaseId)}
-                          className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
-                        >
-                          {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                          <div className="flex-1 text-left">
-                            <h4 className="font-medium text-gray-900">{testCase?.name}</h4>
-                            {test.startTime && test.endTime && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Duration: {Math.round((new Date(test.endTime) - new Date(test.startTime)) / 1000)}s
-                              </p>
-                            )}
-                          </div>
-                          <span className={`flex items-center gap-1 ${
-                            test.status === 'passed' ? 'text-green-600' :
-                            test.status === 'failed' ? 'text-red-600' :
-                            'text-gray-400'
-                          }`}>
-                            {test.status === 'passed' && <CheckCircle2 size={18} />}
-                            {test.status === 'failed' && <XCircle size={18} />}
-                            <span className="text-sm font-medium capitalize">{test.status}</span>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                        <span className="flex items-center gap-1">
+                          <Calendar size={14} />
+                          {format(new Date(execution.executedAt), 'MMM d, yyyy h:mm a')}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-xs ${getEnvironmentColor(execution.environment)}`}>
+                          {execution.environment}
+                        </span>
+                        {execution.version && (
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                            v{execution.version}
                           </span>
-                        </button>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Monitor size={14} />
+                          {execution.deviceType}
+                        </span>
+                      </div>
 
-                        {isExpanded && test.logs && (
-                          <div className="border-t border-gray-200 p-4 bg-gray-50">
-                            <h5 className="text-sm font-medium text-gray-700 mb-2">Test Logs</h5>
-                            <div className="bg-gray-900 text-gray-100 rounded p-3 text-xs font-mono space-y-1 max-h-48 overflow-y-auto">
-                              {test.logs.map((log, i) => (
-                                <div key={i}>{log}</div>
-                              ))}
-                            </div>
+                      {folder && (
+                        <span className="inline-block text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          📁 {folder.name}
+                        </span>
+                      )}
+                    </div>
+
+                    <button className="text-gray-400 hover:text-gray-600">
+                      {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-semibold text-gray-700">Executed By:</span>
+                          <p className="text-gray-600 mt-1">{execution.executedBy}</p>
+                        </div>
+                        {execution.browser && (
+                          <div>
+                            <span className="font-semibold text-gray-700">Browser:</span>
+                            <p className="text-gray-600 mt-1">{execution.browser}</p>
+                          </div>
+                        )}
+                        {execution.os && (
+                          <div>
+                            <span className="font-semibold text-gray-700">Operating System:</span>
+                            <p className="text-gray-600 mt-1">{execution.os}</p>
+                          </div>
+                        )}
+                        {execution.executionTime && (
+                          <div>
+                            <span className="font-semibold text-gray-700">Execution Time:</span>
+                            <p className="text-gray-600 mt-1">{execution.executionTime} minutes</p>
                           </div>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
 
-              {/* Comments */}
-              <div className="card">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <MessageSquare size={20} />
-                  Comments
-                </h3>
-
-                <div className="space-y-3 mb-4">
-                  {runComments.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">No comments yet</p>
-                  ) : (
-                    runComments.map(comment => (
-                      <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">{comment.userName}</p>
-                            <p className="text-xs text-gray-500">
-                              {format(new Date(comment.createdAt), 'MMM d, h:mm a')}
-                            </p>
-                          </div>
-                          {comment.userId === user.id && (
-                            <button
-                              onClick={() => deleteComment(comment.id)}
-                              className="text-gray-400 hover:text-red-600 transition-colors"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                      {testCase?.testSteps && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Test Steps:</span>
+                          <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{testCase.testSteps}</p>
                         </div>
-                        <p className="text-sm text-gray-700">{comment.text}</p>
-                      </div>
-                    ))
+                      )}
+
+                      {testCase?.expectedResult && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Expected Result:</span>
+                          <p className="text-sm text-gray-600 mt-1">{testCase.expectedResult}</p>
+                        </div>
+                      )}
+
+                      {execution.actualResult && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Actual Result:</span>
+                          <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{execution.actualResult}</p>
+                        </div>
+                      )}
+
+                      {execution.notes && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Notes:</span>
+                          <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{execution.notes}</p>
+                        </div>
+                      )}
+
+                      {execution.defects && execution.defects.length > 0 && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Defects:</span>
+                          <div className="mt-2 space-y-2">
+                            {execution.defects.map((defect, idx) => (
+                              <div key={idx} className="bg-red-50 border border-red-200 rounded p-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-red-700">ID: {defect.id}</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded ${
+                                    defect.severity === 'critical' ? 'bg-red-200 text-red-800' :
+                                    defect.severity === 'high' ? 'bg-orange-200 text-orange-800' :
+                                    'bg-yellow-200 text-yellow-800'
+                                  }`}>
+                                    {defect.severity}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-700 mt-1">{defect.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                <form onSubmit={handleAddComment} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Add a comment..."
-                    className="input flex-1"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!commentText.trim()}
-                    className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Send size={16} />
-                    Send
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

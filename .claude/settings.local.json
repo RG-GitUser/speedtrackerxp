@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"/c/Users/rgaff/Documents/Projects \\(Local\\)/speedtestersxp/\")",
+      "Bash(find \"/c/Users/rgaff/Documents/Projects \\(Local\\)/speedtestersxp/src\" -type d)",
+      "Bash(find \"/c/Users/rgaff/Documents/Projects \\(Local\\)/speedtestersxp/server\" -type d)",
+      "Bash(find '/c/Users/rgaff/Documents/Projects \\(Local\\)/speedtestersxp' -type f \\\\\\(-name *.md -o -name *.txt -o -name *.json \\\\\\) ! -path */node_modules/*)",
+      "Bash(xargs grep:*)",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(curl -s http://localhost:3001/api/folders)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s http://localhost:3001/api/teststories/folder/69c00d7bdec4698ef4d6322b)",
+      "Bash(curl -s -X POST http://localhost:3001/api/teststories -H \"Content-Type: application/json\" -d '{:*)",
+      "Bash(curl -s -X POST http://localhost:3001/api/testcases -H \"Content-Type: application/json\" -d '{:*)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  - {s[\"\"title\"\"]} \\({s[\"\"status\"\"]}\\)''''\\) for s in data]\")",
+      "Bash(curl -s http://localhost:3001/api/testcases/folder/69c00d7bdec4698ef4d6322b)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''  - {tc[\"\"name\"\"]}''''\\) for tc in data]\")"
+    ]
+  }
+}

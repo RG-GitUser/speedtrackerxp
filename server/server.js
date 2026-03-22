@@ -9,6 +9,9 @@ const Folder = require('./models/Folder');
 const TestCase = require('./models/TestCase');
 const TestRun = require('./models/TestRun');
 const Comment = require('./models/Comment');
+const DevTask = require('./models/DevTask');
+const TestExecution = require('./models/TestExecution');
+const TestStory = require('./models/TestStory');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -101,6 +104,16 @@ app.get('/api/testcases', async (req, res) => {
 app.get('/api/testcases/folder/:folderId', async (req, res) => {
   try {
     const testCases = await TestCase.find({ folderId: req.params.folderId }).sort({ order: 1 });
+    res.json(testCases);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get test cases by test story
+app.get('/api/testcases/story/:testStoryId', async (req, res) => {
+  try {
+    const testCases = await TestCase.find({ testStoryId: req.params.testStoryId }).sort({ order: 1 });
     res.json(testCases);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -273,6 +286,197 @@ app.delete('/api/comments/:id', async (req, res) => {
   }
 });
 
+// ==================== DEV TASK ROUTES ====================
+
+// Get all dev tasks
+app.get('/api/devtasks', async (req, res) => {
+  try {
+    const devTasks = await DevTask.find().sort({ order: 1 });
+    res.json(devTasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get dev tasks by folder
+app.get('/api/devtasks/folder/:folderId', async (req, res) => {
+  try {
+    const devTasks = await DevTask.find({ folderId: req.params.folderId }).sort({ order: 1 });
+    res.json(devTasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create dev task
+app.post('/api/devtasks', async (req, res) => {
+  try {
+    const devTask = new DevTask(req.body);
+    await devTask.save();
+    res.status(201).json(devTask);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Update dev task
+app.put('/api/devtasks/:id', async (req, res) => {
+  try {
+    const devTask = await DevTask.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!devTask) {
+      return res.status(404).json({ error: 'Dev task not found' });
+    }
+    res.json(devTask);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Delete dev task
+app.delete('/api/devtasks/:id', async (req, res) => {
+  try {
+    const devTask = await DevTask.findByIdAndDelete(req.params.id);
+    if (!devTask) {
+      return res.status(404).json({ error: 'Dev task not found' });
+    }
+    res.json({ message: 'Dev task deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== TEST STORY ROUTES ====================
+
+// Get all test stories
+app.get('/api/teststories', async (req, res) => {
+  try {
+    const testStories = await TestStory.find().sort({ order: 1 });
+    res.json(testStories);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get test stories by folder
+app.get('/api/teststories/folder/:folderId', async (req, res) => {
+  try {
+    const testStories = await TestStory.find({ folderId: req.params.folderId }).sort({ order: 1 });
+    res.json(testStories);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create test story
+app.post('/api/teststories', async (req, res) => {
+  try {
+    const testStory = new TestStory(req.body);
+    await testStory.save();
+    res.status(201).json(testStory);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Update test story
+app.put('/api/teststories/:id', async (req, res) => {
+  try {
+    const testStory = await TestStory.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!testStory) {
+      return res.status(404).json({ error: 'Test story not found' });
+    }
+    res.json(testStory);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Delete test story
+app.delete('/api/teststories/:id', async (req, res) => {
+  try {
+    const testStory = await TestStory.findByIdAndDelete(req.params.id);
+    if (!testStory) {
+      return res.status(404).json({ error: 'Test story not found' });
+    }
+    // Also delete associated test cases
+    await TestCase.deleteMany({ testStoryId: req.params.id });
+    res.json({ message: 'Test story deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== TEST EXECUTION ROUTES ====================
+
+// Get all test executions
+app.get('/api/testexecutions', async (req, res) => {
+  try {
+    const testExecutions = await TestExecution.find().sort({ executedAt: -1 });
+    res.json(testExecutions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get executions for a specific test case
+app.get('/api/testexecutions/testcase/:testCaseId', async (req, res) => {
+  try {
+    const executions = await TestExecution.find({ testCaseId: req.params.testCaseId }).sort({ executedAt: -1 });
+    res.json(executions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create test execution
+app.post('/api/testexecutions', async (req, res) => {
+  try {
+    const testExecution = new TestExecution(req.body);
+    await testExecution.save();
+    res.status(201).json(testExecution);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Update test execution
+app.put('/api/testexecutions/:id', async (req, res) => {
+  try {
+    const testExecution = await TestExecution.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!testExecution) {
+      return res.status(404).json({ error: 'Test execution not found' });
+    }
+    res.json(testExecution);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Delete test execution
+app.delete('/api/testexecutions/:id', async (req, res) => {
+  try {
+    const testExecution = await TestExecution.findByIdAndDelete(req.params.id);
+    if (!testExecution) {
+      return res.status(404).json({ error: 'Test execution not found' });
+    }
+    res.json({ message: 'Test execution deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== HEALTH CHECK ====================
 
 app.get('/api/health', (req, res) => {
@@ -348,22 +552,34 @@ app.listen(PORT, () => {
   console.log(`\n🚀 SpeedTesters XP Backend Server`);
   console.log(`📡 Server running on http://localhost:${PORT}`);
   console.log(`🗄️  Database: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Connecting...'}`);
+  console.log(`\n🔧 Manual Test Management System`);
   console.log(`\nAPI Endpoints:`);
-  console.log(`  GET    /api/folders`);
-  console.log(`  POST   /api/folders`);
-  console.log(`  PUT    /api/folders/:id`);
-  console.log(`  DELETE /api/folders/:id`);
-  console.log(`  GET    /api/testcases`);
-  console.log(`  POST   /api/testcases`);
-  console.log(`  PUT    /api/testcases/:id`);
-  console.log(`  DELETE /api/testcases/:id`);
-  console.log(`  GET    /api/testruns`);
-  console.log(`  POST   /api/testruns`);
-  console.log(`  PUT    /api/testruns/:id`);
-  console.log(`  GET    /api/comments`);
-  console.log(`  POST   /api/comments`);
-  console.log(`  DELETE /api/comments/:id`);
-  console.log(`  GET    /api/health\n`);
+  console.log(`  📁 Folders:`);
+  console.log(`     GET    /api/folders`);
+  console.log(`     POST   /api/folders`);
+  console.log(`     PUT    /api/folders/:id`);
+  console.log(`     DELETE /api/folders/:id`);
+  console.log(`  📝 Test Cases:`);
+  console.log(`     GET    /api/testcases`);
+  console.log(`     POST   /api/testcases`);
+  console.log(`     PUT    /api/testcases/:id`);
+  console.log(`     DELETE /api/testcases/:id`);
+  console.log(`  ✅ Test Executions:`);
+  console.log(`     GET    /api/testexecutions`);
+  console.log(`     POST   /api/testexecutions`);
+  console.log(`     PUT    /api/testexecutions/:id`);
+  console.log(`     DELETE /api/testexecutions/:id`);
+  console.log(`  💻 Dev Tasks:`);
+  console.log(`     GET    /api/devtasks`);
+  console.log(`     POST   /api/devtasks`);
+  console.log(`     PUT    /api/devtasks/:id`);
+  console.log(`     DELETE /api/devtasks/:id`);
+  console.log(`  💬 Comments:`);
+  console.log(`     GET    /api/comments`);
+  console.log(`     POST   /api/comments`);
+  console.log(`     DELETE /api/comments/:id`);
+  console.log(`  ❤️  Health:`);
+  console.log(`     GET    /api/health\n`);
 });
 
 // Graceful shutdown

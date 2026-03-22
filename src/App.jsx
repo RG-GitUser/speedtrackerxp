@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import TestFolders from './pages/TestFolders'
 import TestExecution from './pages/TestExecution'
 import TestHistory from './pages/TestHistory'
+import DevTasks from './pages/DevTasks'
 import Login from './pages/Login'
 import { useAuth } from './contexts/AuthContext'
 
@@ -39,6 +40,7 @@ function App() {
               <Route path="folders" element={<TestFolders />} />
               <Route path="execute" element={<TestExecution />} />
               <Route path="history" element={<TestHistory />} />
+              <Route path="devtasks" element={<DevTasks />} />
             </Route>
           </Routes>
         </DataProvider>

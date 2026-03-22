@@ -6,7 +6,8 @@ import {
   Play, 
   History, 
   LogOut,
-  User
+  User,
+  Code
 } from 'lucide-react'
 import logo from '../XP.svg'
 
@@ -21,9 +22,10 @@ function Layout() {
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/folders', icon: FolderTree, label: 'Test Folders' },
+    { to: '/folders', icon: FolderTree, label: 'User Stories' },
+    { to: '/devtasks', icon: Code, label: 'Dev Tasks' },
     { to: '/execute', icon: Play, label: 'Execute Tests' },
-    { to: '/history', icon: History, label: 'Test History' }
+    { to: '/history', icon: History, label: 'History' }
   ]
 
   return (

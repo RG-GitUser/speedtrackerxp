@@ -1,29 +1,12 @@
 const mongoose = require('mongoose');
 
-const acceptanceCriteriaSchema = new mongoose.Schema({
-  description: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  completed: {
-    type: Boolean,
-    default: false
-  }
-}, { _id: false });
-
-const testCaseSchema = new mongoose.Schema({
-  testStoryId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'TestStory',
-    required: true
-  },
+const testStorySchema = new mongoose.Schema({
   folderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Folder',
     required: true
   },
-  name: {
+  title: {
     type: String,
     required: true,
     trim: true
@@ -32,24 +15,30 @@ const testCaseSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  testSteps: {
+  userStory: {
     type: String,
     trim: true
   },
-  expectedResult: {
-    type: String,
-    trim: true
-  },
-  acceptanceCriteria: [acceptanceCriteriaSchema],
+  acceptanceCriteria: [{
+    description: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    completed: {
+      type: Boolean,
+      default: false
+    }
+  }],
   priority: {
     type: String,
     enum: ['critical', 'high', 'medium', 'low'],
     default: 'medium'
   },
-  testType: {
+  status: {
     type: String,
-    enum: ['functional', 'regression', 'smoke', 'integration', 'ui', 'performance', 'security', 'other'],
-    default: 'functional'
+    enum: ['draft', 'ready', 'in-progress', 'completed', 'blocked'],
+    default: 'draft'
   },
   assignedTo: {
     type: String,
@@ -59,7 +48,7 @@ const testCaseSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  relatedTestCaseIds: [{
+  tags: [{
     type: String,
     trim: true
   }],
@@ -77,9 +66,9 @@ const testCaseSchema = new mongoose.Schema({
   }
 });
 
-testCaseSchema.pre('save', function(next) {
+testStorySchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
 
-module.exports = mongoose.model('TestCase', testCaseSchema);
+module.exports = mongoose.model('TestStory', testStorySchema);

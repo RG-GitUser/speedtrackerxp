@@ -3,23 +3,42 @@ import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
   FolderPlus,
-  FilePlus,
   Edit2,
   Trash2,
   ChevronDown,
   ChevronRight,
-  User
+  User,
+  BookOpen,
+  FileText,
+  Plus
 } from 'lucide-react'
 
 function TestFolders() {
-  const { folders, testCases, addFolder, updateFolder, deleteFolder, addTestCase, updateTestCase, deleteTestCase } = useData()
+  const { 
+    folders, 
+    testStories, 
+    testCases, 
+    addFolder, 
+    updateFolder, 
+    deleteFolder,
+    addTestStory,
+    updateTestStory,
+    deleteTestStory,
+    addTestCase, 
+    updateTestCase, 
+    deleteTestCase 
+  } = useData()
   const { user } = useAuth()
   const [expandedFolders, setExpandedFolders] = useState(new Set())
+  const [expandedStories, setExpandedStories] = useState(new Set())
   const [showFolderModal, setShowFolderModal] = useState(false)
+  const [showStoryModal, setShowStoryModal] = useState(false)
   const [showTestModal, setShowTestModal] = useState(false)
   const [editingFolder, setEditingFolder] = useState(null)
+  const [editingStory, setEditingStory] = useState(null)
   const [editingTest, setEditingTest] = useState(null)
   const [selectedFolder, setSelectedFolder] = useState(null)
+  const [selectedStory, setSelectedStory] = useState(null)
 
   const toggleFolder = (folderId) => {
     const newExpanded = new Set(expandedFolders)
@@ -29,6 +48,16 @@ function TestFolders() {
       newExpanded.add(folderId)
     }
     setExpandedFolders(newExpanded)
+  }
+
+  const toggleStory = (storyId) => {
+    const newExpanded = new Set(expandedStories)
+    if (newExpanded.has(storyId)) {
+      newExpanded.delete(storyId)
+    } else {
+      newExpanded.add(storyId)
+    }
+    setExpandedStories(newExpanded)
   }
 
   const handleAddFolder = () => {
@@ -42,19 +71,39 @@ function TestFolders() {
   }
 
   const handleDeleteFolder = (folderId) => {
-    if (confirm('Are you sure? This will delete all test cases in this folder.')) {
+    if (confirm('Are you sure? This will delete all user stories and test cases in this folder.')) {
       deleteFolder(folderId)
     }
   }
 
-  const handleAddTest = (folderId) => {
+  const handleAddStory = (folderId) => {
     setSelectedFolder(folderId)
+    setEditingStory(null)
+    setShowStoryModal(true)
+  }
+
+  const handleEditStory = (story) => {
+    setSelectedFolder(story.folderId)
+    setEditingStory(story)
+    setShowStoryModal(true)
+  }
+
+  const handleDeleteStory = (storyId) => {
+    if (confirm('Are you sure? This will delete all test cases in this user story.')) {
+      deleteTestStory(storyId)
+    }
+  }
+
+  const handleAddTest = (folderId, storyId) => {
+    setSelectedFolder(folderId)
+    setSelectedStory(storyId)
     setEditingTest(null)
     setShowTestModal(true)
   }
 
   const handleEditTest = (test) => {
     setSelectedFolder(test.folderId)
+    setSelectedStory(test.testStoryId)
     setEditingTest(test)
     setShowTestModal(true)
   }
@@ -65,14 +114,16 @@ function TestFolders() {
     }
   }
 
+  const rootFolders = folders.filter(f => !f.parentId)
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold text-primary-800">
-            🗂️ Test Folders
+            📖 User Stories
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">Organize and manage your test cases</p>
+          <p className="text-gray-600 mt-2 text-lg">Create user stories and attach test cases</p>
         </div>
         {user?.role === 'admin' && (
           <button onClick={handleAddFolder} className="btn btn-primary flex items-center gap-2">
@@ -82,11 +133,24 @@ function TestFolders() {
         )}
       </div>
 
+      {/* Info Card */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <BookOpen className="text-blue-600 mt-0.5" size={20} />
+          <div>
+            <h3 className="font-semibold text-blue-900">How it works:</h3>
+            <p className="text-sm text-blue-700 mt-1">
+              1. Organize work in <strong>Folders</strong> → 2. Create <strong>User Stories</strong> → 3. Attach <strong>Test Cases</strong> to each story
+            </p>
+          </div>
+        </div>
+      </div>
+
       {folders.length === 0 ? (
         <div className="card text-center py-12">
           <FolderPlus size={64} className="mx-auto text-gray-300 mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 mb-2">No folders yet</h3>
-          <p className="text-gray-600 mb-4">Create your first test folder to get started</p>
+          <p className="text-gray-600 mb-4">Create your first folder to organize user stories</p>
           {user?.role === 'admin' && (
             <button onClick={handleAddFolder} className="btn btn-primary">
               Create Folder
@@ -95,25 +159,33 @@ function TestFolders() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Recursive Folder Tree Component */}
-          <FolderTree
-            folders={folders}
-            testCases={testCases}
-            expandedFolders={expandedFolders}
-            toggleFolder={toggleFolder}
-            handleAddTest={handleAddTest}
-            handleEditFolder={handleEditFolder}
-            handleDeleteFolder={handleDeleteFolder}
-            handleEditTest={handleEditTest}
-            handleDeleteTest={handleDeleteTest}
-            userRole={user?.role}
-            parentId={null}
-            level={0}
-          />
+          {rootFolders.map((folder) => (
+            <FolderCard
+              key={folder.id}
+              folder={folder}
+              folders={folders}
+              testStories={testStories}
+              testCases={testCases}
+              expandedFolders={expandedFolders}
+              expandedStories={expandedStories}
+              toggleFolder={toggleFolder}
+              toggleStory={toggleStory}
+              handleAddStory={handleAddStory}
+              handleEditFolder={handleEditFolder}
+              handleDeleteFolder={handleDeleteFolder}
+              handleEditStory={handleEditStory}
+              handleDeleteStory={handleDeleteStory}
+              handleAddTest={handleAddTest}
+              handleEditTest={handleEditTest}
+              handleDeleteTest={handleDeleteTest}
+              user={user}
+              depth={0}
+            />
+          ))}
         </div>
       )}
 
-      {/* Folder Modal */}
+      {/* Modals */}
       {showFolderModal && (
         <FolderModal
           folder={editingFolder}
@@ -129,17 +201,33 @@ function TestFolders() {
         />
       )}
 
-      {/* Test Case Modal */}
+      {showStoryModal && (
+        <TestStoryModal
+          story={editingStory}
+          folderId={selectedFolder}
+          onClose={() => setShowStoryModal(false)}
+          onSave={(data) => {
+            if (editingStory) {
+              updateTestStory(editingStory.id, data)
+            } else {
+              addTestStory({ ...data, folderId: selectedFolder })
+            }
+            setShowStoryModal(false)
+          }}
+        />
+      )}
+
       {showTestModal && (
         <TestCaseModal
           test={editingTest}
           folderId={selectedFolder}
+          storyId={selectedStory}
           onClose={() => setShowTestModal(false)}
           onSave={(data) => {
             if (editingTest) {
               updateTestCase(editingTest.id, data)
             } else {
-              addTestCase({ ...data, folderId: selectedFolder })
+              addTestCase({ ...data, folderId: selectedFolder, testStoryId: selectedStory })
             }
             setShowTestModal(false)
           }}
@@ -149,151 +237,310 @@ function TestFolders() {
   )
 }
 
-function FolderTree({ folders, testCases, expandedFolders, toggleFolder, handleAddTest, handleEditFolder, handleDeleteFolder, handleEditTest, handleDeleteTest, userRole, parentId, level }) {
-  // Get folders at this level
-  const currentLevelFolders = folders.filter(f => f.parentId === parentId)
+function FolderCard({
+  folder, folders, testStories, testCases,
+  expandedFolders, expandedStories, toggleFolder, toggleStory,
+  handleAddStory, handleEditFolder, handleDeleteFolder,
+  handleEditStory, handleDeleteStory,
+  handleAddTest, handleEditTest, handleDeleteTest,
+  user, depth
+}) {
+  const folderStories = testStories.filter(ts => ts.folderId === folder.id)
+  const childFolders = folders.filter(f => f.parentId === folder.id)
+  const isExpanded = expandedFolders.has(folder.id)
+
+  const priorityColors = {
+    'critical': 'text-red-600 bg-red-50 border-red-200',
+    'high': 'text-orange-600 bg-orange-50 border-orange-200',
+    'medium': 'text-yellow-600 bg-yellow-50 border-yellow-200',
+    'low': 'text-green-600 bg-green-50 border-green-200'
+  }
+
+  const statusColors = {
+    'draft': 'bg-gray-100 text-gray-700',
+    'ready': 'bg-blue-100 text-blue-700',
+    'in-progress': 'bg-purple-100 text-purple-700',
+    'completed': 'bg-green-100 text-green-700',
+    'blocked': 'bg-red-100 text-red-700'
+  }
 
   return (
-    <>
-      {currentLevelFolders.map((folder) => {
-        const folderTests = testCases.filter(tc => tc.folderId === folder.id)
-        const isExpanded = expandedFolders.has(folder.id)
-        const hasChildren = folders.some(f => f.parentId === folder.id)
-        const indent = level * 24 // Indent by 24px per level
+    <div className={depth > 0 ? 'ml-6 mt-3' : ''}>
+      <div className={depth > 0 ? 'bg-gray-50 rounded-lg p-4 border border-gray-200' : 'card'}>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => toggleFolder(folder.id)}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+          </button>
 
-        return (
-          <div key={folder.id} style={{ marginLeft: `${indent}px` }}>
-            <div className={`card mb-4 ${level > 0 ? 'bg-gray-50 border-l-4 border-primary-400' : ''}`}>
-              <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{depth > 0 ? '📂' : '📁'}</span>
+              <h3 className={`font-semibold text-gray-900 ${depth > 0 ? 'text-base' : 'text-lg'}`}>{folder.name}</h3>
+            </div>
+            {folder.description && <p className="text-sm text-gray-600 mt-1">{folder.description}</p>}
+            <div className="flex items-center gap-4 mt-2">
+              <span className="text-xs text-gray-500">
+                {folderStories.length} user {folderStories.length === 1 ? 'story' : 'stories'}
+              </span>
+              {childFolders.length > 0 && (
+                <span className="text-xs text-gray-500">
+                  {childFolders.length} sub{childFolders.length === 1 ? 'folder' : 'folders'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleAddStory(folder.id)}
+              className="btn btn-success flex items-center gap-2 text-sm"
+            >
+              <BookOpen size={16} />
+              New User Story
+            </button>
+            {user?.role === 'admin' && (
+              <>
                 <button
-                  onClick={() => toggleFolder(folder.id)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  onClick={() => handleEditFolder(folder)}
+                  className="p-2 text-gray-600 hover:text-primary-600 rounded transition-colors"
                 >
-                  {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  <Edit2 size={18} />
                 </button>
+                <button
+                  onClick={() => handleDeleteFolder(folder.id)}
+                  className="p-2 text-gray-600 hover:text-red-600 rounded transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    {level > 0 && <span className="text-xl">🏁</span>}
-                    <h3 className="text-lg font-semibold text-gray-900">{folder.name}</h3>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">{folder.description}</p>
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="text-xs text-gray-500">
-                      {folderTests.length} test {folderTests.length === 1 ? 'case' : 'cases'}
-                    </span>
-                    {hasChildren && (
-                      <span className="text-xs text-primary-600 font-medium">
-                        📁 Has subfolders
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleAddTest(folder.id)}
-                    className="btn btn-secondary flex items-center gap-2 text-sm"
-                  >
-                    <FilePlus size={16} />
-                    Add Test
-                  </button>
-                  {userRole === 'admin' && (
-                    <>
-                      <button
-                        onClick={() => handleEditFolder(folder)}
-                        className="p-2 text-gray-600 hover:text-primary-600 rounded transition-colors"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteFolder(folder.id)}
-                        className="p-2 text-gray-600 hover:text-red-600 rounded transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </>
-                  )}
-                </div>
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            {/* Child Subfolders */}
+            {childFolders.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {childFolders.map((childFolder) => (
+                  <FolderCard
+                    key={childFolder.id}
+                    folder={childFolder}
+                    folders={folders}
+                    testStories={testStories}
+                    testCases={testCases}
+                    expandedFolders={expandedFolders}
+                    expandedStories={expandedStories}
+                    toggleFolder={toggleFolder}
+                    toggleStory={toggleStory}
+                    handleAddStory={handleAddStory}
+                    handleEditFolder={handleEditFolder}
+                    handleDeleteFolder={handleDeleteFolder}
+                    handleEditStory={handleEditStory}
+                    handleDeleteStory={handleDeleteStory}
+                    handleAddTest={handleAddTest}
+                    handleEditTest={handleEditTest}
+                    handleDeleteTest={handleDeleteTest}
+                    user={user}
+                    depth={depth + 1}
+                  />
+                ))}
               </div>
+            )}
 
-              {isExpanded && folderTests.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
-                  {folderTests.map((test) => (
-                    <div
-                      key={test.id}
-                      className="bg-white rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200"
-                    >
+            {/* User Stories */}
+            {folderStories.length === 0 && childFolders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <BookOpen size={48} className="mx-auto mb-3 text-gray-300" />
+                <p>No user stories yet</p>
+                <button
+                  onClick={() => handleAddStory(folder.id)}
+                  className="text-primary-600 hover:text-primary-700 text-sm mt-2"
+                >
+                  Create your first user story
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {folderStories.map((story) => {
+                  const storyCases = testCases.filter(tc => tc.testStoryId === story.id)
+                  const isStoryExpanded = expandedStories.has(story.id)
+
+                  return (
+                    <div key={story.id} className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{test.name}</h4>
-                          <p className="text-sm text-gray-600 mt-1">{test.description}</p>
-                          <div className="mt-3 space-y-1 text-sm">
-                            {test.script && (
-                              <div className="flex items-center gap-2 text-gray-700">
-                                <span className="font-medium">Script:</span>
-                                <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">{test.script}</code>
+                        <div className="flex items-start gap-3 flex-1">
+                          <button
+                            onClick={() => toggleStory(story.id)}
+                            className="text-gray-500 hover:text-gray-700 mt-1"
+                          >
+                            {isStoryExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          </button>
+
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <BookOpen size={18} className="text-blue-600" />
+                              <h4 className="font-semibold text-gray-900">{story.title}</h4>
+                              {story.priority && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium border ${priorityColors[story.priority]}`}>
+                                  {story.priority}
+                                </span>
+                              )}
+                              {story.status && (
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[story.status]}`}>
+                                  {story.status}
+                                </span>
+                              )}
+                            </div>
+                            {story.description && (
+                              <p className="text-sm text-gray-700 mt-1">{story.description}</p>
+                            )}
+                            {story.userStory && (
+                              <div className="bg-white border border-blue-200 rounded p-3 mt-2">
+                                <p className="text-sm text-blue-800 italic">"{story.userStory}"</p>
                               </div>
                             )}
-                            {test.expectedBehavior && (
-                              <div className="flex items-start gap-2 text-gray-700">
-                                <span className="font-medium">Expected:</span>
-                                <span>{test.expectedBehavior}</span>
+                            {story.acceptanceCriteria && story.acceptanceCriteria.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-semibold text-gray-700 mb-1">Acceptance Criteria:</p>
+                                <ul className="space-y-1">
+                                  {story.acceptanceCriteria.map((ac, idx) => (
+                                    <li key={idx} className="flex items-start gap-2 text-xs text-gray-600">
+                                      <span className="text-green-600">✓</span>
+                                      <span>{ac.description}</span>
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
                             )}
-                            {test.assignedTo && (
-                              <div className="flex items-center gap-2 text-gray-700">
-                                <User size={14} />
-                                <span className="text-xs">Assigned to: {test.assignedTo}</span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-4 mt-3">
+                              <span className="text-xs text-gray-600">
+                                {storyCases.length} test {storyCases.length === 1 ? 'case' : 'cases'}
+                              </span>
+                              {story.assignedTo && (
+                                <span className="text-xs text-gray-600 flex items-center gap-1">
+                                  <User size={12} />
+                                  {story.assignedTo}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 ml-4">
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleEditTest(test)}
-                            className="p-2 text-gray-600 hover:text-primary-600 rounded transition-colors"
+                            onClick={() => handleAddTest(folder.id, story.id)}
+                            className="btn btn-secondary flex items-center gap-1 text-xs py-1 px-3"
+                          >
+                            <Plus size={14} />
+                            Test Case
+                          </button>
+                          <button
+                            onClick={() => handleEditStory(story)}
+                            className="p-2 text-gray-600 hover:text-primary-600 rounded"
                           >
                             <Edit2 size={16} />
                           </button>
-                          {userRole === 'admin' && (
+                          {user?.role === 'admin' && (
                             <button
-                              onClick={() => handleDeleteTest(test.id)}
-                              className="p-2 text-gray-600 hover:text-red-600 rounded transition-colors"
+                              onClick={() => handleDeleteStory(story.id)}
+                              className="p-2 text-gray-600 hover:text-red-600 rounded"
                             >
                               <Trash2 size={16} />
                             </button>
                           )}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            {/* Recursively render child folders */}
-            {isExpanded && hasChildren && (
-              <FolderTree
-                folders={folders}
-                testCases={testCases}
-                expandedFolders={expandedFolders}
-                toggleFolder={toggleFolder}
-                handleAddTest={handleAddTest}
-                handleEditFolder={handleEditFolder}
-                handleDeleteFolder={handleDeleteFolder}
-                handleEditTest={handleEditTest}
-                handleDeleteTest={handleDeleteTest}
-                userRole={userRole}
-                parentId={folder.id}
-                level={level + 1}
-              />
+                      {/* Test Cases */}
+                      {isStoryExpanded && (
+                        <div className="mt-3 pl-6 space-y-2">
+                          {storyCases.length === 0 ? (
+                            <div className="text-center py-4 text-gray-500 text-sm bg-white rounded border border-gray-200">
+                              <FileText size={32} className="mx-auto mb-2 text-gray-300" />
+                              <p>No test cases yet</p>
+                              <button
+                                onClick={() => handleAddTest(folder.id, story.id)}
+                                className="text-primary-600 hover:text-primary-700 text-xs mt-2"
+                              >
+                                Add first test case
+                              </button>
+                            </div>
+                          ) : (
+                            storyCases.map((test) => {
+                              const testPriorityColors = {
+                                'critical': 'text-red-600 bg-red-50 border-red-200',
+                                'high': 'text-orange-600 bg-orange-50 border-orange-200',
+                                'medium': 'text-yellow-600 bg-yellow-50 border-yellow-200',
+                                'low': 'text-green-600 bg-green-50 border-green-200'
+                              }
+
+                              return (
+                                <div
+                                  key={test.id}
+                                  className="bg-white rounded-lg p-3 border border-gray-200 hover:border-primary-300 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <FileText size={14} className="text-gray-600" />
+                                        <span className="font-medium text-gray-900 text-sm">{test.name}</span>
+                                        {test.priority && (
+                                          <span className={`px-2 py-0.5 rounded text-xs font-medium border ${testPriorityColors[test.priority]}`}>
+                                            {test.priority}
+                                          </span>
+                                        )}
+                                        {test.testType && (
+                                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
+                                            {test.testType}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {test.description && (
+                                        <p className="text-xs text-gray-600 mt-1">{test.description}</p>
+                                      )}
+                                      {test.testSteps && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          {test.testSteps.split('\n')[0]}...
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => handleEditTest(test)}
+                                        className="p-1 text-gray-600 hover:text-primary-600 rounded"
+                                      >
+                                        <Edit2 size={14} />
+                                      </button>
+                                      {user?.role === 'admin' && (
+                                        <button
+                                          onClick={() => handleDeleteTest(test.id)}
+                                          className="p-1 text-gray-600 hover:text-red-600 rounded"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
-        )
-      })}
-    </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -308,7 +555,6 @@ function FolderModal({ folder, onClose, onSave }) {
     onSave({ name, description, parentId: parentId || null })
   }
 
-  // Filter out the current folder and its children to prevent circular nesting
   const availableParentFolders = folders.filter(f => f.id !== folder?.id)
 
   return (
@@ -321,14 +567,14 @@ function FolderModal({ folder, onClose, onSave }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Folder Name
+              Folder Name *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="input"
-              placeholder="e.g., TGC-App Project"
+              placeholder="e.g., User Authentication"
               required
             />
           </div>
@@ -342,29 +588,8 @@ function FolderModal({ folder, onClose, onSave }) {
               onChange={(e) => setDescription(e.target.value)}
               className="input"
               rows={3}
-              placeholder="Brief description of this test folder..."
+              placeholder="Brief description of this folder..."
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Parent Folder (Optional)
-            </label>
-            <select
-              value={parentId}
-              onChange={(e) => setParentId(e.target.value)}
-              className="input"
-            >
-              <option value="">📁 Root Level (No Parent)</option>
-              {availableParentFolders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.parentId ? '  ├─ ' : '📁 '}{f.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Select a parent folder to nest this folder inside it
-            </p>
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -381,20 +606,228 @@ function FolderModal({ folder, onClose, onSave }) {
   )
 }
 
-function TestCaseModal({ test, folderId, onClose, onSave }) {
-  const [name, setName] = useState(test?.name || '')
-  const [description, setDescription] = useState(test?.description || '')
-  const [script, setScript] = useState(test?.script || '')
-  const [expectedBehavior, setExpectedBehavior] = useState(test?.expectedBehavior || '')
+function TestStoryModal({ story, folderId, onClose, onSave }) {
+  const [title, setTitle] = useState(story?.title || '')
+  const [description, setDescription] = useState(story?.description || '')
+  const [userStory, setUserStory] = useState(story?.userStory || '')
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState(story?.acceptanceCriteria || [])
+  const [priority, setPriority] = useState(story?.priority || 'medium')
+  const [status, setStatus] = useState(story?.status || 'draft')
+  const [assignedTo, setAssignedTo] = useState(story?.assignedTo || '')
+  const [newCriterion, setNewCriterion] = useState('')
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSave({ name, description, script, expectedBehavior })
+    onSave({ 
+      title, 
+      description, 
+      userStory,
+      acceptanceCriteria,
+      priority,
+      status,
+      assignedTo
+    })
+  }
+
+  const addAcceptanceCriterion = () => {
+    if (newCriterion.trim()) {
+      setAcceptanceCriteria([...acceptanceCriteria, { description: newCriterion.trim(), completed: false }])
+      setNewCriterion('')
+    }
+  }
+
+  const removeAcceptanceCriterion = (index) => {
+    setAcceptanceCriteria(acceptanceCriteria.filter((_, i) => i !== index))
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          {story ? 'Edit User Story' : 'New User Story'}
+        </h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Story Title *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="input"
+              placeholder="e.g., User Login Flow"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="input"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="input"
+              >
+                <option value="draft">Draft</option>
+                <option value="ready">Ready</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assigned To
+              </label>
+              <input
+                type="text"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="input"
+                placeholder="Name"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input"
+              rows={2}
+              placeholder="Brief description of this user story..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              User Story Format
+            </label>
+            <textarea
+              value={userStory}
+              onChange={(e) => setUserStory(e.target.value)}
+              className="input"
+              rows={2}
+              placeholder="As a [user], I want to [action], so that [benefit]"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Example: As a registered user, I want to log in with my credentials, so that I can access my account
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Acceptance Criteria
+            </label>
+            <div className="space-y-2">
+              {acceptanceCriteria.map((criterion, index) => (
+                <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                  <span className="flex-1 text-sm">{criterion.description}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAcceptanceCriterion(index)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCriterion}
+                  onChange={(e) => setNewCriterion(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAcceptanceCriterion())}
+                  className="input flex-1"
+                  placeholder="Add acceptance criterion..."
+                />
+                <button
+                  type="button"
+                  onClick={addAcceptanceCriterion}
+                  className="btn btn-secondary"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary flex-1">
+              {story ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function TestCaseModal({ test, folderId, storyId, onClose, onSave }) {
+  const { devTasks } = useData()
+  const [name, setName] = useState(test?.name || '')
+  const [description, setDescription] = useState(test?.description || '')
+  const [testSteps, setTestSteps] = useState(test?.testSteps || '')
+  const [expectedResult, setExpectedResult] = useState(test?.expectedResult || '')
+  const [priority, setPriority] = useState(test?.priority || 'medium')
+  const [testType, setTestType] = useState(test?.testType || 'functional')
+  const [assignedTo, setAssignedTo] = useState(test?.assignedTo || '')
+  const [relatedDevTaskIds, setRelatedDevTaskIds] = useState(test?.relatedDevTaskIds || [])
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSave({ 
+      name, 
+      description, 
+      testSteps, 
+      expectedResult,
+      priority,
+      testType,
+      assignedTo,
+      relatedDevTaskIds
+    })
+  }
+
+  const toggleRelatedDevTask = (taskId) => {
+    if (relatedDevTaskIds.includes(taskId)) {
+      setRelatedDevTaskIds(relatedDevTaskIds.filter(id => id !== taskId))
+    } else {
+      setRelatedDevTaskIds([...relatedDevTaskIds, taskId])
+    }
+  }
+
+  const availableDevTasks = devTasks.filter(dt => dt.folderId === folderId)
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           {test ? 'Edit Test Case' : 'New Test Case'}
         </h2>
@@ -402,16 +835,67 @@ function TestCaseModal({ test, folderId, onClose, onSave }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Test Name
+              Test Case Name *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="input"
-              placeholder="e.g., User Login Test"
+              placeholder="e.g., Valid Login Test"
               required
             />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="input"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Test Type
+              </label>
+              <select
+                value={testType}
+                onChange={(e) => setTestType(e.target.value)}
+                className="input"
+              >
+                <option value="functional">Functional</option>
+                <option value="regression">Regression</option>
+                <option value="smoke">Smoke</option>
+                <option value="integration">Integration</option>
+                <option value="ui">UI</option>
+                <option value="performance">Performance</option>
+                <option value="security">Security</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assigned To
+              </label>
+              <input
+                type="text"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="input"
+                placeholder="Name"
+              />
+            </div>
           </div>
 
           <div>
@@ -429,29 +913,50 @@ function TestCaseModal({ test, folderId, onClose, onSave }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Script Path
+              Test Steps
             </label>
-            <input
-              type="text"
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
+            <textarea
+              value={testSteps}
+              onChange={(e) => setTestSteps(e.target.value)}
               className="input"
-              placeholder="e.g., test-scripts/login.js"
+              rows={4}
+              placeholder="1. Navigate to login page&#10;2. Enter credentials&#10;3. Click login button&#10;4. Verify dashboard loads"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Expected Behavior
+              Expected Result
             </label>
             <textarea
-              value={expectedBehavior}
-              onChange={(e) => setExpectedBehavior(e.target.value)}
+              value={expectedResult}
+              onChange={(e) => setExpectedResult(e.target.value)}
               className="input"
               rows={2}
               placeholder="What should happen when this test passes?"
             />
           </div>
+
+          {availableDevTasks.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Related Dev Tasks
+              </label>
+              <div className="max-h-32 overflow-y-auto space-y-1 border border-gray-200 rounded p-2">
+                {availableDevTasks.map(task => (
+                  <label key={task.id} className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={relatedDevTaskIds.includes(task.id)}
+                      onChange={() => toggleRelatedDevTask(task.id)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{task.title}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
