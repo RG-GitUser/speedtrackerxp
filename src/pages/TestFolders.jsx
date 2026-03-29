@@ -3,6 +3,7 @@ import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
   FolderPlus,
+  FolderTree,
   Edit2,
   Trash2,
   ChevronDown,
@@ -10,7 +11,8 @@ import {
   User,
   BookOpen,
   FileText,
-  Plus
+  Plus,
+  ArrowRight
 } from 'lucide-react'
 
 function TestFolders() {
@@ -40,6 +42,9 @@ function TestFolders() {
   const [editingTest, setEditingTest] = useState(null)
   const [selectedFolder, setSelectedFolder] = useState(null)
   const [selectedStory, setSelectedStory] = useState(null)
+  const [projectFolderName, setProjectFolderName] = useState('')
+  const [projectFolderDescription, setProjectFolderDescription] = useState('')
+  const [projectFolderSaving, setProjectFolderSaving] = useState(false)
 
   const toggleFolder = (folderId) => {
     const newExpanded = new Set(expandedFolders)
@@ -64,6 +69,26 @@ function TestFolders() {
   const handleAddFolder = () => {
     setEditingFolder(null)
     setShowFolderModal(true)
+  }
+
+  const handleCreateProjectFolder = async (e) => {
+    e.preventDefault()
+    const name = projectFolderName.trim()
+    if (!name) return
+    setProjectFolderSaving(true)
+    try {
+      await addFolder({
+        name,
+        description: projectFolderDescription.trim() || undefined,
+        parentId: null
+      })
+      setProjectFolderName('')
+      setProjectFolderDescription('')
+    } catch {
+      // DataContext logs errors; keep form so user can retry
+    } finally {
+      setProjectFolderSaving(false)
+    }
   }
 
   const handleEditFolder = (folder) => {
@@ -139,6 +164,113 @@ function TestFolders() {
           </button>
         )}
       </div>
+
+      {user?.role === 'admin' && (
+        <section
+          className="relative mb-8 overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md ring-1 ring-black/[0.04]"
+          aria-labelledby="project-folder-heading"
+        >
+          <div
+            className="h-1 bg-gradient-to-r from-primary-400 via-primary-600 to-accent-500"
+            aria-hidden
+          />
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex gap-4 sm:gap-5">
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-100 to-primary-50 text-primary-700 shadow-sm ring-1 ring-primary-200/60"
+                  aria-hidden
+                >
+                  <FolderTree size={28} strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-600">
+                    Structure
+                  </p>
+                  <h2
+                    id="project-folder-heading"
+                    className="mt-1 text-xl font-bold tracking-tight text-gray-900 sm:text-2xl"
+                  >
+                    New project folder
+                  </h2>
+                  <p className="mt-2 max-w-lg text-sm leading-relaxed text-gray-600">
+                    Start a top-level folder, then add user stories and test cases underneath. Use one folder per product, release train, or team—whatever matches how you work.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700">
+                      Root of the tree
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700">
+                      Stories & tests nest inside
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-xl border border-gray-100 bg-gradient-to-b from-gray-50/90 to-gray-50/40 p-5 sm:p-6">
+              <form
+                onSubmit={handleCreateProjectFolder}
+                className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto] lg:items-end lg:gap-6"
+              >
+                <div>
+                  <label
+                    htmlFor="project-folder-name"
+                    className="mb-1.5 block text-sm font-semibold text-gray-800"
+                  >
+                    Name
+                  </label>
+                  <input
+                    id="project-folder-name"
+                    type="text"
+                    value={projectFolderName}
+                    onChange={(e) => setProjectFolderName(e.target.value)}
+                    className="input bg-white shadow-sm"
+                    placeholder="Mobile app — Q2, API platform, Checkout…"
+                    autoComplete="off"
+                    disabled={projectFolderSaving}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="project-folder-description"
+                    className="mb-1.5 flex items-baseline gap-2 text-sm font-semibold text-gray-800"
+                  >
+                    Notes
+                    <span className="text-xs font-normal text-gray-500">optional</span>
+                  </label>
+                  <textarea
+                    id="project-folder-description"
+                    value={projectFolderDescription}
+                    onChange={(e) => setProjectFolderDescription(e.target.value)}
+                    className="input min-h-[2.875rem] resize-y bg-white py-2.5 shadow-sm sm:min-h-[2.75rem]"
+                    rows={2}
+                    placeholder="Context for your team (scope, owner, links…)"
+                    autoComplete="off"
+                    disabled={projectFolderSaving}
+                  />
+                </div>
+                <div className="lg:pb-0.5">
+                  <button
+                    type="submit"
+                    className="btn btn-primary flex h-[42px] w-full items-center justify-center gap-2 rounded-xl px-6 shadow-md lg:min-w-[200px]"
+                    disabled={projectFolderSaving || !projectFolderName.trim()}
+                  >
+                    {projectFolderSaving ? (
+                      'Creating…'
+                    ) : (
+                      <>
+                        Create folder
+                        <ArrowRight size={18} strokeWidth={2.25} className="opacity-90" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Info Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
