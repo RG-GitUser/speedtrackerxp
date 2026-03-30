@@ -32,20 +32,17 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-primary-900 to-accent-900">
-      {/* Large Logo - Fixed Size */}
-      <div style={{ marginTop: '-300px', marginBottom: '-220px' }}>
-        <img
-          src={logo}
-          alt="SpeedTesters XP"
-          className="mx-auto"
-          style={{ width: '1400px', height: 'auto' }}
-        />
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-start bg-gradient-to-br from-gray-900 via-primary-900 to-accent-900">
+      {/* Heading Image */}
+      <img
+        src={logo}
+        alt="SpeedTesters XP"
+        className="w-full max-w-5xl px-4 mt-4 -mb-8 md:-mb-14"
+      />
 
       {/* Login Card */}
-      <div className="w-full max-w-md">
-        <div className="bg-white/90 backdrop-blur-md rounded-lg shadow-xl p-6 border border-gray-200">
+      <div className="w-full max-w-md px-4 md:px-0">
+        <div className="bg-white/95 backdrop-blur-md rounded-lg shadow-2xl p-6 border border-gray-200">
           <h2 className="text-xl font-bold text-gray-900 text-center mb-6">Sign In</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">

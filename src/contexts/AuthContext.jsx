@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext()
 
-const API_URL = 'http://localhost:3001/api'
+// API Base URL — relative '/api' in production (same-domain proxy), full URL in dev
+const API_URL = import.meta.env.DEV ? 'http://localhost:3001/api' : '/api'
 
 export function useAuth() {
   const context = useContext(AuthContext)

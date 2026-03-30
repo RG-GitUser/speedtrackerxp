@@ -132,17 +132,15 @@ function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Top Header with Logo */}
-      <header className="bg-gray-900 shadow-lg">
+      <header className="bg-gray-900 shadow-lg relative z-50">
         <div className="w-full px-6 py-2">
-          <div className="flex items-center justify-between" style={{ height: '80px' }}>
-            <div className="flex items-center justify-center flex-1">
-              <img
-                src={logo}
-                alt="SpeedTesters XP"
-                className="object-contain"
-                style={{ height: '280px' }}
-              />
-            </div>
+          <div className="flex items-center justify-center" style={{ height: '80px' }}>
+            <img
+              src={logo}
+              alt="SpeedTesters XP"
+              className="object-contain"
+              style={{ height: '280px' }}
+            />
 
             {/* Search + User Info */}
             <div className="flex items-center gap-4 absolute right-6">
@@ -159,7 +157,7 @@ function Layout() {
                     }}
                     onFocus={() => setShowResults(true)}
                     placeholder="Search stories, tests, tasks..."
-                    className="bg-transparent text-gray-200 text-sm px-2 py-2 w-64 outline-none placeholder-gray-500"
+                    className="bg-transparent text-gray-200 text-sm px-2 py-2 w-36 sm:w-48 md:w-64 outline-none placeholder-gray-500"
                   />
                   {searchQuery && (
                     <button
@@ -173,7 +171,7 @@ function Layout() {
 
                 {/* Search Results Dropdown */}
                 {showResults && isSearching && (
-                  <div className="absolute right-0 top-full mt-2 w-[480px] bg-white rounded-lg shadow-2xl border border-gray-200 max-h-[500px] overflow-y-auto z-50">
+                  <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[420px] md:w-[480px] bg-white rounded-lg shadow-2xl border border-gray-200 max-h-[500px] overflow-y-auto z-50">
                     {totalResults === 0 ? (
                       <div className="p-6 text-center text-gray-400">
                         <Search size={32} className="mx-auto mb-2" />
@@ -346,16 +344,16 @@ function Layout() {
         </div>
 
         {/* Navigation Bar */}
-        <nav className="bg-gray-800 border-t border-gray-700">
-          <div className="container mx-auto px-6">
-            <div className="flex items-center gap-2">
+        <nav className="bg-gray-800 border-t border-gray-700 overflow-x-auto">
+          <div className="px-4 md:px-6">
+            <div className="flex items-center gap-1 md:gap-2 min-w-max">
               {navItems.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   end={item.to === '/'}
                   className={({ isActive }) =>
-                    `flex items-center gap-2 px-6 py-4 transition-colors ${
+                    `flex items-center gap-2 px-4 md:px-6 py-3 md:py-4 text-sm md:text-base whitespace-nowrap transition-colors ${
                       isActive
                         ? 'bg-primary-800 text-primary-300 font-medium border-b-2 border-primary-600'
                         : 'text-gray-400 hover:bg-gray-800 hover:text-primary-400'

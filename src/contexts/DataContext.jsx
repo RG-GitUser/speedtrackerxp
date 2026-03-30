@@ -10,8 +10,8 @@ export function useData() {
   return context
 }
 
-// API Base URL - change this if your backend runs on a different port
-const API_URL = 'http://localhost:3001/api'
+// API Base URL — relative '/api' in production (same-domain proxy), full URL in dev
+const API_URL = import.meta.env.DEV ? 'http://localhost:3001/api' : '/api'
 
 export function DataProvider({ children }) {
   const [folders, setFolders] = useState([])
