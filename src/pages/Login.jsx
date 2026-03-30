@@ -37,7 +37,7 @@ function Login() {
       <img
         src={logo}
         alt="SpeedTesters XP"
-        className="w-full max-w-5xl px-4 mt-4 -mb-8 md:-mb-14"
+        className="w-full max-w-7xl px-4 mt-2 -mb-24 md:-mb-40"
       />
 
       {/* Login Card */}

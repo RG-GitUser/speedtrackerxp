@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -13,16 +13,24 @@ import {
   FileText,
   FolderOpen,
   Save,
-  List
+  List,
+  User,
+  Filter,
+  Wrench,
+  Search,
+  X
 } from 'lucide-react'
 
 function TestExecution() {
-  const { folders, testStories, testCases, devTasks, addTestExecution } = useData()
+  const { folders, testStories, testCases, devTasks, users, addTestExecution } = useData()
   const { user } = useAuth()
   const [expandedProjects, setExpandedProjects] = useState(new Set())
   const [expandedFolders, setExpandedFolders] = useState(new Set())
   const [expandedStories, setExpandedStories] = useState(new Set())
   const [selectedTest, setSelectedTest] = useState(null)
+  const [showMyTestsOnly, setShowMyTestsOnly] = useState(false)
+  const [assignedUserFilter, setAssignedUserFilter] = useState('')
+  const [treeSearchQuery, setTreeSearchQuery] = useState('')
   const [showSteps, setShowSteps] = useState(true)
   const [executionData, setExecutionData] = useState({
     status: '',
@@ -37,6 +45,93 @@ function TestExecution() {
   })
 
   const rootFolders = folders.filter(f => !f.parentId)
+  const isFiltering = showMyTestsOnly || assignedUserFilter || treeSearchQuery.trim()
+
+  // Auto-expand tree when filters/search are active to reveal matching items
+  useEffect(() => {
+    if (!isFiltering) return
+
+    const query = treeSearchQuery.trim().toLowerCase()
+    const matchingProjectIds = new Set()
+    const matchingFolderIds = new Set()
+    const matchingStoryIds = new Set()
+
+    // Find all test cases that match the current filters
+    testCases.forEach(tc => {
+      let matches = true
+      if (showMyTestsOnly && tc.assignedTo !== user?.name) matches = false
+      if (assignedUserFilter && tc.assignedTo !== assignedUserFilter) matches = false
+      if (query && !tc.name.toLowerCase().includes(query)) matches = false
+
+      if (matches) {
+        // Find the story and folder chain for this test case
+        const story = testStories.find(s => s.id === tc.testStoryId)
+        if (story) {
+          matchingStoryIds.add(story.id)
+          // Walk up the folder chain
+          let folderId = story.folderId || tc.folderId
+          while (folderId) {
+            const folder = folders.find(f => f.id === folderId)
+            if (!folder) break
+            if (folder.parentId) {
+              matchingFolderIds.add(folder.id)
+              folderId = folder.parentId
+            } else {
+              matchingProjectIds.add(folder.id)
+              folderId = null
+            }
+          }
+        }
+      }
+    })
+
+    // Also check stories assigned to the filtered user
+    if (assignedUserFilter || showMyTestsOnly) {
+      const targetUser = assignedUserFilter || user?.name
+      testStories.forEach(story => {
+        if (story.assignedTo === targetUser) {
+          matchingStoryIds.add(story.id)
+          let folderId = story.folderId
+          while (folderId) {
+            const folder = folders.find(f => f.id === folderId)
+            if (!folder) break
+            if (folder.parentId) {
+              matchingFolderIds.add(folder.id)
+              folderId = folder.parentId
+            } else {
+              matchingProjectIds.add(folder.id)
+              folderId = null
+            }
+          }
+        }
+      })
+    }
+
+    // Also check stories matching search query
+    if (query) {
+      testStories.forEach(story => {
+        if (story.title.toLowerCase().includes(query)) {
+          matchingStoryIds.add(story.id)
+          let folderId = story.folderId
+          while (folderId) {
+            const folder = folders.find(f => f.id === folderId)
+            if (!folder) break
+            if (folder.parentId) {
+              matchingFolderIds.add(folder.id)
+              folderId = folder.parentId
+            } else {
+              matchingProjectIds.add(folder.id)
+              folderId = null
+            }
+          }
+        }
+      })
+    }
+
+    setExpandedProjects(matchingProjectIds)
+    setExpandedFolders(matchingFolderIds)
+    setExpandedStories(matchingStoryIds)
+  }, [assignedUserFilter, showMyTestsOnly, treeSearchQuery])
 
   const toggleSet = (set, setFn, id) => {
     const next = new Set(set)
@@ -174,8 +269,32 @@ function TestExecution() {
 
   // Render a user story node
   const renderStory = (story, folderId, depth) => {
-    const storyCases = testCases.filter(tc => tc.testStoryId === story.id)
+    const allStoryCases = testCases.filter(tc => tc.testStoryId === story.id)
+    let storyCases = allStoryCases
+
+    // Filter by "my tests"
+    if (showMyTestsOnly) {
+      storyCases = storyCases.filter(tc => tc.assignedTo === user?.name)
+    }
+    // Filter by assigned user dropdown
+    if (assignedUserFilter) {
+      storyCases = storyCases.filter(tc => tc.assignedTo === assignedUserFilter)
+    }
+    // Filter by search query
+    const query = treeSearchQuery.trim().toLowerCase()
+    if (query) {
+      storyCases = storyCases.filter(tc => tc.name.toLowerCase().includes(query))
+    }
+
     const isExpanded = expandedStories.has(story.id)
+    const isStoryAssigned = story.assignedTo === user?.name
+    const storyMatchesSearch = query ? story.title.toLowerCase().includes(query) : true
+    const storyMatchesUser = assignedUserFilter ? story.assignedTo === assignedUserFilter : true
+
+    // Skip if filters active and nothing matches
+    if (showMyTestsOnly && storyCases.length === 0 && !isStoryAssigned) return null
+    if (assignedUserFilter && storyCases.length === 0 && story.assignedTo !== assignedUserFilter) return null
+    if (query && storyCases.length === 0 && !storyMatchesSearch) return null
 
     return (
       <div key={story.id}>
@@ -187,6 +306,15 @@ function TestExecution() {
           {isExpanded ? <ChevronDown size={14} className="text-blue-400 shrink-0" /> : <ChevronRight size={14} className="text-blue-400 shrink-0" />}
           <BookOpen size={16} className="text-blue-500 shrink-0" />
           <span className="font-medium text-blue-800 text-sm truncate">{story.title}</span>
+          {story.assignedTo && (
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-0.5 shrink-0 ${
+              isStoryAssigned ? 'bg-primary-100 text-primary-700' :
+              (assignedUserFilter && story.assignedTo === assignedUserFilter) ? 'bg-blue-200 text-blue-800' :
+              isFiltering ? 'bg-gray-100 text-gray-600' : 'hidden'
+            }`}>
+              <User size={9} /> {isStoryAssigned ? 'Yours' : story.assignedTo}
+            </span>
+          )}
           <span className="text-xs text-blue-400 ml-auto shrink-0">{storyCases.length} tests</span>
         </button>
 
@@ -199,6 +327,9 @@ function TestExecution() {
             ) : (
               storyCases.map(tc => {
                 const isSelected = selectedTest?.id === tc.id
+                const isAssigned = tc.assignedTo === user?.name
+                const isFilteredUser = assignedUserFilter && tc.assignedTo === assignedUserFilter
+                const isHighlighted = isAssigned || isFilteredUser
                 return (
                   <button
                     key={tc.id}
@@ -206,14 +337,25 @@ function TestExecution() {
                     className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-left ${
                       isSelected
                         ? 'bg-primary-100 border-l-4 border-primary-500'
-                        : 'hover:bg-gray-50'
+                        : isHighlighted
+                          ? 'bg-blue-50/70 border-l-2 border-blue-400 hover:bg-blue-50'
+                          : 'hover:bg-gray-50'
                     }`}
                     style={{ paddingLeft: `${(depth + 1) * 16 + (isSelected ? 8 : 12)}px` }}
                   >
-                    <FileText size={14} className={isSelected ? 'text-primary-600 shrink-0' : 'text-gray-400 shrink-0'} />
+                    <FileText size={14} className={isSelected ? 'text-primary-600 shrink-0' : isHighlighted ? 'text-blue-500 shrink-0' : 'text-gray-400 shrink-0'} />
                     <span className={`text-sm truncate ${isSelected ? 'font-semibold text-primary-800' : 'text-gray-700'}`}>
                       {tc.name}
                     </span>
+                    {tc.assignedTo && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-0.5 shrink-0 ${
+                        isAssigned ? 'bg-primary-100 text-primary-700' :
+                        isFilteredUser ? 'bg-blue-100 text-blue-700' :
+                        isFiltering ? 'bg-gray-100 text-gray-500' : 'hidden'
+                      }`}>
+                        <User size={9} /> {isAssigned ? 'You' : tc.assignedTo}
+                      </span>
+                    )}
                     {tc.priority && (
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ml-auto shrink-0 ${getPriorityColor(tc.priority)}`}>
                         {tc.priority}
@@ -250,11 +392,54 @@ function TestExecution() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Panel - Project Tree */}
         <div className="lg:col-span-4 card p-0 overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-2">
-              <List size={16} />
-              Project Tree
-            </h2>
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                <List size={16} />
+                Project Tree
+              </h2>
+              <button
+                onClick={() => setShowMyTestsOnly(!showMyTestsOnly)}
+                className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${
+                  showMyTestsOnly
+                    ? 'bg-primary-100 text-primary-700 font-medium'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                <Filter size={12} />
+                {showMyTestsOnly ? 'Showing Mine' : 'My Tests'}
+              </button>
+            </div>
+            {/* Search & Assigned User Filter */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-white border border-gray-300 rounded-md flex-1 overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400">
+                <Search size={14} className="text-gray-400 ml-2 shrink-0" />
+                <input
+                  type="text"
+                  value={treeSearchQuery}
+                  onChange={(e) => setTreeSearchQuery(e.target.value)}
+                  placeholder="Search tests..."
+                  className="bg-transparent text-sm px-2 py-1.5 w-full outline-none text-gray-700 placeholder-gray-400"
+                />
+                {treeSearchQuery && (
+                  <button onClick={() => setTreeSearchQuery('')} className="text-gray-400 hover:text-gray-600 mr-1.5">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              <select
+                value={assignedUserFilter}
+                onChange={(e) => setAssignedUserFilter(e.target.value)}
+                className={`text-xs border rounded-md px-2 py-1.5 bg-white focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none ${
+                  assignedUserFilter ? 'border-blue-400 text-blue-700 font-medium' : 'border-gray-300 text-gray-700'
+                }`}
+              >
+                <option value="">Assigned To...</option>
+                {users.map(u => (
+                  <option key={u.id || u._id} value={u.name}>{u.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="max-h-[700px] overflow-y-auto">
@@ -278,7 +463,7 @@ function TestExecution() {
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
                     >
                       {isExpanded ? <ChevronDown size={16} className="text-gray-500 shrink-0" /> : <ChevronRight size={16} className="text-gray-500 shrink-0" />}
-                      <span className="text-lg">📁</span>
+                      <FolderOpen size={18} className="text-amber-500 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-gray-900 text-sm block truncate">{project.name}</span>
                         <span className="text-xs text-gray-400">{testCount} test cases</span>
@@ -438,25 +623,67 @@ function TestExecution() {
                       )
                       // Deduplicate
                       const uniqueTasks = [...new Map(linkedTasks.map(t => [t.id, t])).values()]
-                      if (uniqueTasks.length === 0) return null
+                      const isAssignedToMe = selectedTest.assignedTo === user?.name ||
+                        (selectedStory && selectedStory.assignedTo === user?.name)
+
+                      if (uniqueTasks.length === 0 && !isAssignedToMe) return null
+
                       return (
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1">
-                            🔧 Related Dev Tasks ({uniqueTasks.length})
-                          </h3>
-                          <div className="space-y-1">
-                            {uniqueTasks.map(task => (
-                              <div key={task.id} className="bg-purple-50 rounded-lg px-3 py-2 border border-purple-200 flex items-center justify-between">
-                                <span className="text-sm text-purple-800">{task.title}</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                  task.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                  task.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
-                                  task.status === 'blocked' ? 'bg-red-100 text-red-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>{task.status}</span>
+                          {/* Your Assignment banner when test is assigned to current user */}
+                          {isAssignedToMe && (
+                            <div className="bg-gradient-to-r from-primary-50 to-blue-50 border-2 border-primary-200 rounded-lg p-4 mb-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <User size={16} className="text-primary-600" />
+                                <span className="text-sm font-semibold text-primary-800">Your Assignment</span>
                               </div>
-                            ))}
-                          </div>
+                              {uniqueTasks.length > 0 ? (
+                                <div className="space-y-1">
+                                  {uniqueTasks.map(task => (
+                                    <div key={task.id} className="flex items-center gap-2 text-sm">
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                                        task.status === 'completed' ? 'bg-green-500' :
+                                        task.status === 'in-progress' ? 'bg-blue-500' :
+                                        task.status === 'blocked' ? 'bg-red-500' :
+                                        'bg-gray-400'
+                                      }`} />
+                                      <span className="text-gray-700">{task.title}</span>
+                                      <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                        task.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                        task.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
+                                        task.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      }`}>{task.status}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-primary-600">No linked dev tasks</p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Standard related dev tasks (when not assigned to user) */}
+                          {!isAssignedToMe && uniqueTasks.length > 0 && (
+                            <div>
+                              <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1">
+                                <Wrench size={14} /> Related Dev Tasks ({uniqueTasks.length})
+                              </h3>
+                              <div className="space-y-1">
+                                {uniqueTasks.map(task => (
+                                  <div key={task.id} className="bg-purple-50 rounded-lg px-3 py-2 border border-purple-200 flex items-center justify-between">
+                                    <span className="text-sm text-purple-800">{task.title}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                      task.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                      task.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
+                                      task.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>{task.status}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })()}

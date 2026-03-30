@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -14,12 +15,15 @@ import {
   BookOpen,
   FileText,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ArrowRight,
+  User
 } from 'lucide-react'
 
 function DevTasks() {
   const { folders, devTasks, testCases, testStories, users, addDevTask, updateDevTask, deleteDevTask } = useData()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [selectedFolder, setSelectedFolder] = useState('')
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
@@ -262,13 +266,13 @@ function DevTasks() {
                             {task.priority}
                           </span>
                           {task.assignedTo && (
-                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
-                              👤 {task.assignedTo}
+                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs flex items-center gap-1">
+                              <User size={12} /> {task.assignedTo}
                             </span>
                           )}
                           {task.estimatedHours && (
-                            <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs">
-                              ⏱️ {task.estimatedHours}h
+                            <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs flex items-center gap-1">
+                              <Clock size={12} /> {task.estimatedHours}h
                             </span>
                           )}
                         </div>
@@ -304,10 +308,15 @@ function DevTasks() {
                                     </p>
                                     <div className="space-y-1">
                                       {relatedStories.map(story => (
-                                        <div key={story.id} className="text-xs bg-blue-50 text-blue-800 p-2 rounded flex items-center gap-2">
+                                        <button
+                                          key={story.id}
+                                          onClick={() => navigate('/folders', { state: { highlightStoryId: story.id, folderId: story.folderId } })}
+                                          className="text-xs bg-blue-50 text-blue-800 p-2 rounded flex items-center gap-2 w-full text-left hover:bg-blue-100 transition-colors cursor-pointer"
+                                        >
                                           <BookOpen size={12} className="text-blue-500 shrink-0" />
-                                          {story.title}
-                                        </div>
+                                          <span className="truncate">{story.title}</span>
+                                          <ArrowRight size={12} className="ml-auto shrink-0 opacity-50" />
+                                        </button>
                                       ))}
                                     </div>
                                   </div>
@@ -319,10 +328,15 @@ function DevTasks() {
                                     </p>
                                     <div className="space-y-1">
                                       {relatedTests.map(test => (
-                                        <div key={test.id} className="text-xs bg-green-50 text-green-800 p-2 rounded flex items-center gap-2">
+                                        <button
+                                          key={test.id}
+                                          onClick={() => navigate('/folders', { state: { highlightTestCaseId: test.id, testStoryId: test.testStoryId, folderId: test.folderId } })}
+                                          className="text-xs bg-green-50 text-green-800 p-2 rounded flex items-center gap-2 w-full text-left hover:bg-green-100 transition-colors cursor-pointer"
+                                        >
                                           <FileText size={12} className="text-green-500 shrink-0" />
-                                          {test.name}
-                                        </div>
+                                          <span className="truncate">{test.name}</span>
+                                          <ArrowRight size={12} className="ml-auto shrink-0 opacity-50" />
+                                        </button>
                                       ))}
                                     </div>
                                   </div>

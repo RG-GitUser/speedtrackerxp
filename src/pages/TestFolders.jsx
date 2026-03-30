@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
   FolderPlus,
   FolderTree,
+  Folder,
+  FolderOpen,
   Edit2,
   Trash2,
   ChevronDown,
@@ -12,7 +15,9 @@ import {
   BookOpen,
   FileText,
   Plus,
-  ArrowRight
+  ArrowRight,
+  Wrench,
+  CheckCircle2
 } from 'lucide-react'
 
 function TestFolders() {
@@ -32,8 +37,11 @@ function TestFolders() {
     deleteTestCase
   } = useData()
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [expandedFolders, setExpandedFolders] = useState(new Set())
   const [expandedStories, setExpandedStories] = useState(new Set())
+  const [highlightedId, setHighlightedId] = useState(null)
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [showStoryModal, setShowStoryModal] = useState(false)
   const [showTestModal, setShowTestModal] = useState(false)
@@ -65,6 +73,73 @@ function TestFolders() {
     }
     setExpandedStories(newExpanded)
   }
+
+  // Deep-link: auto-expand and highlight when navigating from DevTasks or Search
+  const getFolderAncestorIds = (folderId) => {
+    const ids = []
+    let current = folders.find(f => f.id === folderId)
+    while (current) {
+      ids.push(current.id)
+      current = current.parentId ? folders.find(f => f.id === current.parentId) : null
+    }
+    return ids
+  }
+
+  useEffect(() => {
+    const state = location.state
+    if (!state || folders.length === 0) return
+
+    const { highlightStoryId, highlightTestCaseId } = state
+
+    if (highlightStoryId) {
+      const story = testStories.find(s => s.id === highlightStoryId)
+      if (story) {
+        const ancestorIds = getFolderAncestorIds(story.folderId)
+        setExpandedFolders(prev => {
+          const next = new Set(prev)
+          ancestorIds.forEach(id => next.add(id))
+          return next
+        })
+        setExpandedStories(prev => {
+          const next = new Set(prev)
+          next.add(story.id)
+          return next
+        })
+        setHighlightedId(story.id)
+        setTimeout(() => {
+          document.getElementById(`story-${story.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 150)
+      }
+    }
+
+    if (highlightTestCaseId) {
+      const tc = testCases.find(t => t.id === highlightTestCaseId)
+      if (tc) {
+        const ancestorIds = getFolderAncestorIds(tc.folderId)
+        setExpandedFolders(prev => {
+          const next = new Set(prev)
+          ancestorIds.forEach(id => next.add(id))
+          return next
+        })
+        if (tc.testStoryId) {
+          setExpandedStories(prev => {
+            const next = new Set(prev)
+            next.add(tc.testStoryId)
+            return next
+          })
+        }
+        setHighlightedId(tc.id)
+        setTimeout(() => {
+          document.getElementById(`testcase-${tc.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 150)
+      }
+    }
+
+    // Clear highlight after 3 seconds
+    setTimeout(() => setHighlightedId(null), 3000)
+    // Clear state to prevent re-triggering
+    navigate('/folders', { replace: true, state: null })
+  }, [location.state, folders.length, testStories.length, testCases.length])
 
   const handleAddFolder = () => {
     setEditingFolder(null)
@@ -320,6 +395,7 @@ function TestFolders() {
               handleDeleteTest={handleDeleteTest}
               user={user}
               depth={0}
+              highlightedId={highlightedId}
             />
           ))}
         </div>
@@ -383,7 +459,7 @@ function FolderCard({
   handleAddStory, handleEditFolder, handleDeleteFolder,
   handleEditStory, handleDeleteStory,
   handleAddTest, handleEditTest, handleDeleteTest,
-  user, depth
+  user, depth, highlightedId
 }) {
   const folderStories = testStories.filter(ts => ts.folderId === folder.id)
   const childFolders = folders.filter(f => f.parentId === folder.id)
@@ -433,7 +509,7 @@ function FolderCard({
 
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">{depth > 0 ? '📂' : '📁'}</span>
+              {depth > 0 ? <FolderOpen size={22} className="text-amber-500" /> : <Folder size={22} className="text-amber-500" />}
               <h3 className={`font-semibold text-gray-900 ${depth > 0 ? 'text-base' : 'text-lg'}`}>{folder.name}</h3>
             </div>
             {folder.description && <p className="text-sm text-gray-600 mt-1">{folder.description}</p>}
@@ -506,6 +582,7 @@ function FolderCard({
                     handleDeleteTest={handleDeleteTest}
                     user={user}
                     depth={depth + 1}
+                    highlightedId={highlightedId}
                   />
                 ))}
               </div>
@@ -534,179 +611,140 @@ function FolderCard({
                   )
 
                   return (
-                    <div key={story.id} className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3 flex-1">
-                          <button
-                            onClick={() => toggleStory(story.id)}
-                            className="text-gray-500 hover:text-gray-700 mt-1"
-                          >
-                            {isStoryExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    <div key={story.id} id={`story-${story.id}`} className={`bg-white rounded-lg border-l-4 border border-gray-200 transition-all duration-500 ${highlightedId === story.id ? 'border-l-primary-500 ring-2 ring-primary-400 ring-offset-2' : 'border-l-blue-400'}`}>
+                      {/* Story Header — always visible */}
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <button
+                          onClick={() => toggleStory(story.id)}
+                          className="text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {isStoryExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        <BookOpen size={16} className="text-blue-500 shrink-0" />
+                        <h4 className="font-semibold text-gray-900 text-sm flex-1 truncate">{story.title}</h4>
+                        {story.priority && (
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-medium border shrink-0 ${priorityColors[story.priority]}`}>
+                            {story.priority}
+                          </span>
+                        )}
+                        {story.status && (
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${statusColors[story.status]}`}>
+                            {story.status}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 shrink-0">{storyCases.length} tests</span>
+                        {linkedDevTasks.length > 0 && (
+                          <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                            <Wrench size={10} /> {linkedDevTasks.length}
+                          </span>
+                        )}
+                        {story.assignedTo && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1 shrink-0">
+                            <User size={11} /> {story.assignedTo}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <button onClick={() => handleAddTest(folder.id, story.id)} className="p-1 text-gray-400 hover:text-green-600 rounded transition-colors" title="Add test case">
+                            <Plus size={15} />
                           </button>
-
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <BookOpen size={18} className="text-blue-600" />
-                              <h4 className="font-semibold text-gray-900">{story.title}</h4>
-                              {story.priority && (
-                                <span className={`px-2 py-0.5 rounded text-xs font-medium border ${priorityColors[story.priority]}`}>
-                                  {story.priority}
-                                </span>
-                              )}
-                              {story.status && (
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[story.status]}`}>
-                                  {story.status}
-                                </span>
-                              )}
-                            </div>
-                            {story.description && (
-                              <p className="text-sm text-gray-700 mt-1">{story.description}</p>
-                            )}
-                            {story.userStory && (
-                              <div className="bg-white border border-blue-200 rounded p-3 mt-2">
-                                <p className="text-sm text-blue-800 italic">"{story.userStory}"</p>
-                              </div>
-                            )}
-                            {story.acceptanceCriteria && story.acceptanceCriteria.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-xs font-semibold text-gray-700 mb-1">Acceptance Criteria:</p>
-                                <ul className="space-y-1">
-                                  {story.acceptanceCriteria.map((ac, idx) => (
-                                    <li key={idx} className="flex items-start gap-2 text-xs text-gray-600">
-                                      <span className="text-green-600">✓</span>
-                                      <span>{ac.description}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-4 mt-3">
-                              <span className="text-xs text-gray-600">
-                                {storyCases.length} test {storyCases.length === 1 ? 'case' : 'cases'}
-                              </span>
-                              {linkedDevTasks.length > 0 && (
-                                <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  🔧 {linkedDevTasks.length} dev {linkedDevTasks.length === 1 ? 'task' : 'tasks'}
-                                </span>
-                              )}
-                              {story.assignedTo && (
-                                <span className="text-xs text-gray-600 flex items-center gap-1">
-                                  <User size={12} />
-                                  {story.assignedTo}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleAddTest(folder.id, story.id)}
-                            className="btn btn-secondary flex items-center gap-1 text-xs py-1 px-3"
-                          >
-                            <Plus size={14} />
-                            Test Case
-                          </button>
-                          <button
-                            onClick={() => handleEditStory(story)}
-                            className="p-2 text-gray-600 hover:text-primary-600 rounded"
-                          >
-                            <Edit2 size={16} />
+                          <button onClick={() => handleEditStory(story)} className="p-1 text-gray-400 hover:text-primary-600 rounded transition-colors" title="Edit story">
+                            <Edit2 size={14} />
                           </button>
                           {user?.role === 'admin' && (
-                            <button
-                              onClick={() => handleDeleteStory(story.id)}
-                              className="p-2 text-gray-600 hover:text-red-600 rounded"
-                            >
-                              <Trash2 size={16} />
+                            <button onClick={() => handleDeleteStory(story.id)} className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors" title="Delete story">
+                              <Trash2 size={14} />
                             </button>
                           )}
                         </div>
                       </div>
 
-                      {/* Test Cases */}
+                      {/* Expanded Content */}
                       {isStoryExpanded && (
-                        <div className="mt-3 pl-6 space-y-2">
-                          {storyCases.length === 0 ? (
-                            <div className="text-center py-4 text-gray-500 text-sm bg-white rounded border border-gray-200">
-                              <FileText size={32} className="mx-auto mb-2 text-gray-300" />
-                              <p>No test cases yet</p>
-                              <button
-                                onClick={() => handleAddTest(folder.id, story.id)}
-                                className="text-primary-600 hover:text-primary-700 text-xs mt-2"
-                              >
-                                Add first test case
-                              </button>
+                        <div className="border-t border-gray-100">
+                          {/* Story Details */}
+                          {(story.description || story.userStory || (story.acceptanceCriteria && story.acceptanceCriteria.length > 0)) && (
+                            <div className="px-4 py-3 bg-gray-50/50 space-y-2">
+                              {story.description && (
+                                <p className="text-sm text-gray-600">{story.description}</p>
+                              )}
+                              {story.userStory && (
+                                <p className="text-sm text-blue-700 italic bg-blue-50 rounded px-3 py-2">"{story.userStory}"</p>
+                              )}
+                              {story.acceptanceCriteria && story.acceptanceCriteria.length > 0 && (
+                                <div className="space-y-1">
+                                  {story.acceptanceCriteria.map((ac, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 text-xs text-gray-600">
+                                      <CheckCircle2 size={12} className="text-green-500 mt-0.5 shrink-0" />
+                                      <span>{ac.description}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            storyCases.map((test) => {
-                              const testLinkedDevTasks = devTasks.filter(dt =>
-                                dt.relatedTestCaseIds?.includes(test.id) || test.relatedDevTaskIds?.includes(dt.id)
-                              )
-                              const testPriorityColors = {
-                                'critical': 'text-red-600 bg-red-50 border-red-200',
-                                'high': 'text-orange-600 bg-orange-50 border-orange-200',
-                                'medium': 'text-yellow-600 bg-yellow-50 border-yellow-200',
-                                'low': 'text-green-600 bg-green-50 border-green-200'
-                              }
+                          )}
 
-                              return (
-                                <div
-                                  key={test.id}
-                                  className="bg-white rounded-lg p-3 border border-gray-200 hover:border-primary-300 transition-colors"
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <FileText size={14} className="text-gray-600" />
-                                        <span className="font-medium text-gray-900 text-sm">{test.name}</span>
-                                        {test.priority && (
-                                          <span className={`px-2 py-0.5 rounded text-xs font-medium border ${testPriorityColors[test.priority]}`}>
-                                            {test.priority}
-                                          </span>
-                                        )}
-                                        {test.testType && (
-                                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
-                                            {test.testType}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {test.description && (
-                                        <p className="text-xs text-gray-600 mt-1">{test.description}</p>
-                                      )}
-                                      {test.testSteps && (
-                                        <p className="text-xs text-gray-500 mt-1">
-                                          {test.testSteps.split('\n')[0]}...
-                                        </p>
-                                      )}
-                                      {testLinkedDevTasks.length > 0 && (
-                                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-                                          🔧 {testLinkedDevTasks.length} dev {testLinkedDevTasks.length === 1 ? 'task' : 'tasks'}
+                          {/* Test Cases — compact list */}
+                          <div className="px-4 py-2">
+                            {storyCases.length === 0 ? (
+                              <div className="text-center py-4 text-gray-400 text-sm">
+                                <p>No test cases yet</p>
+                                <button onClick={() => handleAddTest(folder.id, story.id)} className="text-primary-600 hover:text-primary-700 text-xs mt-1">
+                                  Add first test case
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                {storyCases.map((test) => {
+                                  const testLinkedDevTasks = devTasks.filter(dt =>
+                                    dt.relatedTestCaseIds?.includes(test.id) || test.relatedDevTaskIds?.includes(dt.id)
+                                  )
+                                  const testPriorityColors = {
+                                    'critical': 'text-red-600 bg-red-50 border-red-200',
+                                    'high': 'text-orange-600 bg-orange-50 border-orange-200',
+                                    'medium': 'text-yellow-600 bg-yellow-50 border-yellow-200',
+                                    'low': 'text-green-600 bg-green-50 border-green-200'
+                                  }
+
+                                  return (
+                                    <div
+                                      key={test.id}
+                                      id={`testcase-${test.id}`}
+                                      className={`flex items-center gap-2 px-3 py-2 rounded-md group transition-all duration-500 ${highlightedId === test.id ? 'bg-primary-50 ring-2 ring-primary-400' : 'hover:bg-gray-50'}`}
+                                    >
+                                      <FileText size={14} className="text-gray-400 shrink-0" />
+                                      <span className="text-sm text-gray-800 truncate flex-1">{test.name}</span>
+                                      {test.priority && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0 ${testPriorityColors[test.priority]}`}>
+                                          {test.priority}
                                         </span>
                                       )}
-                                    </div>
-
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() => handleEditTest(test)}
-                                        className="p-1 text-gray-600 hover:text-primary-600 rounded"
-                                      >
-                                        <Edit2 size={14} />
-                                      </button>
-                                      {user?.role === 'admin' && (
-                                        <button
-                                          onClick={() => handleDeleteTest(test.id)}
-                                          className="p-1 text-gray-600 hover:text-red-600 rounded"
-                                        >
-                                          <Trash2 size={14} />
-                                        </button>
+                                      {test.testType && (
+                                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] shrink-0">
+                                          {test.testType}
+                                        </span>
                                       )}
+                                      {testLinkedDevTasks.length > 0 && (
+                                        <span className="text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
+                                          <Wrench size={9} /> {testLinkedDevTasks.length}
+                                        </span>
+                                      )}
+                                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleEditTest(test)} className="p-1 text-gray-400 hover:text-primary-600 rounded">
+                                          <Edit2 size={12} />
+                                        </button>
+                                        {user?.role === 'admin' && (
+                                          <button onClick={() => handleDeleteTest(test.id)} className="p-1 text-gray-400 hover:text-red-600 rounded">
+                                            <Trash2 size={12} />
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                </div>
-                              )
-                            })
-                          )}
+                                  )
+                                })
+                                }
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

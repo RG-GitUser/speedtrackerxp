@@ -18,23 +18,23 @@
   }
   
   .btn-primary {
-    @apply bg-primary-800 text-white hover:bg-primary-700 focus:ring-primary-500 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all;
+    @apply bg-primary-800 text-white hover:bg-primary-700 focus:ring-primary-500 shadow-sm hover:shadow-md transition-all;
   }
-  
+
   .btn-secondary {
-    @apply bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500 hover:scale-105 transition-all;
+    @apply bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500 transition-all;
   }
-  
+
   .btn-success {
-    @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all;
+    @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md transition-all;
   }
-  
+
   .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all;
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md transition-all;
   }
-  
+
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-primary-200 transition-all;
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all;
   }
   
   .input {

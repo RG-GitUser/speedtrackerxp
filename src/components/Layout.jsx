@@ -94,8 +94,10 @@ function Layout() {
     setSearchQuery('')
     switch (type) {
       case 'story':
+        navigate('/folders', { state: { highlightStoryId: item.id, folderId: item.folderId } })
+        break
       case 'testcase':
-        navigate('/folders')
+        navigate('/folders', { state: { highlightTestCaseId: item.id, testStoryId: item.testStoryId, folderId: item.folderId } })
         break
       case 'devtask':
         navigate('/devtasks')

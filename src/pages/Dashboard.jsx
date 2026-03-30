@@ -1,19 +1,21 @@
 import { useData } from '../contexts/DataContext'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
-import { 
-  FolderTree, 
-  FileCheck, 
-  Play, 
-  CheckCircle2, 
+import {
+  FolderTree,
+  FileCheck,
+  Play,
+  CheckCircle2,
   XCircle,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Trash2,
+  Rocket
 } from 'lucide-react'
 import { format } from 'date-fns'
 
 function Dashboard() {
-  const { folders, testStories, testCases, testRuns, testExecutions, loading } = useData()
+  const { folders, testStories, testCases, testRuns, testExecutions, deleteTestExecution, loading } = useData()
   const { user } = useAuth()
 
   if (loading) {
@@ -71,7 +73,7 @@ function Dashboard() {
         <h1 className="text-4xl font-bold text-primary-800">
           Dashboard
         </h1>
-        <p className="text-gray-600 mt-2 text-lg">🏁 Welcome back, {user?.name}! Ready to accelerate your testing?</p>
+        <p className="text-gray-600 mt-2 text-lg flex items-center gap-2"><Rocket size={20} className="text-primary-600" /> Welcome back, {user?.name}! Ready to accelerate your testing?</p>
       </div>
 
       {/* Statistics Grid */}
@@ -125,27 +127,39 @@ function Dashboard() {
                 const StatusIcon = config.icon
 
                 return (
-                  <Link
+                  <div
                     key={execution.id}
-                    to="/history"
-                    className="block border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-sm transition-all"
+                    className="border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-sm transition-all"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      <Link to="/history" className="flex items-center gap-2 flex-1 min-w-0">
                         <StatusIcon size={18} className={config.color} />
-                        <span className="font-medium text-gray-900 text-sm">
+                        <span className="font-medium text-gray-900 text-sm truncate">
                           {testCase?.name || 'Unknown Test'}
                         </span>
+                      </Link>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${config.bg}`}>
+                          {config.label}
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Delete this execution?')) {
+                              deleteTestExecution(execution.id)
+                            }
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                          title="Delete execution"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${config.bg}`}>
-                        {config.label}
-                      </span>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span>{format(new Date(execution.executedAt || execution.createdAt), 'MMM d, yyyy h:mm a')}</span>
                       <span className="bg-gray-100 px-2 py-0.5 rounded">{execution.environment}</span>
                     </div>
-                  </Link>
+                  </div>
                 )
               })}
             </div>

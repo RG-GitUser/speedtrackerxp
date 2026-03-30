@@ -11,7 +11,8 @@ import {
   Code,
   Filter,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Folder
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -231,8 +232,8 @@ function TestHistory() {
                       </div>
 
                       {folder && (
-                        <span className="inline-block text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          📁 {folder.name}
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          <Folder size={12} /> {folder.name}
                         </span>
                       )}
                     </div>
